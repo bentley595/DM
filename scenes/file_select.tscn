@@ -1,0 +1,201 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/file_select.gd" id="1_fileselect"]
+[ext_resource type="Script" path="res://scripts/star_field.gd" id="2_stars"]
+
+[sub_resource type="Gradient" id="gradient_particles"]
+offsets = PackedFloat32Array(0.0, 0.3, 0.7, 1.0)
+colors = PackedColorArray(1, 0.9, 0.3, 1, 1, 0.5, 0.1, 0.9, 0.9, 0.2, 0.1, 0.6, 0.4, 0.1, 0.05, 0)
+
+[node name="FileSelect" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_fileselect")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.12, 1)
+
+[node name="StarField" type="Node2D" parent="."]
+script = ExtResource("2_stars")
+
+[node name="MagicParticles" type="CPUParticles2D" parent="."]
+emitting = true
+amount = 200
+lifetime = 4.0
+speed_scale = 1.0
+randomness = 0.5
+direction = Vector2(0.42, -0.91)
+spread = 10.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 8.0
+initial_velocity_max = 15.0
+scale_amount_min = 1.5
+scale_amount_max = 2.5
+color = Color(1.0, 0.5, 0.1, 0.8)
+color_ramp = SubResource("gradient_particles")
+emission_shape = 3
+emission_rect_extents = Vector2(180, 0)
+position = Vector2(160, 185)
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -60.0
+offset_top = 15.0
+offset_right = 60.0
+offset_bottom = 35.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+text = "SELECT FILE"
+
+[node name="FileSlots" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -130.0
+offset_top = -35.0
+offset_right = 130.0
+offset_bottom = 35.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="Slot0" type="ColorRect" parent="FileSlots"]
+custom_minimum_size = Vector2(80, 70)
+layout_mode = 2
+color = Color(0.15, 0.15, 0.3, 0.9)
+
+[node name="SlotLabel" type="Label" parent="FileSlots/Slot0"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -30.0
+offset_top = 10.0
+offset_right = 30.0
+offset_bottom = 25.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "FILE 1"
+
+[node name="StatusLabel" type="Label" parent="FileSlots/Slot0"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -30.0
+offset_top = 30.0
+offset_right = 30.0
+offset_bottom = 45.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "- Empty -"
+
+[node name="Slot1" type="ColorRect" parent="FileSlots"]
+custom_minimum_size = Vector2(80, 70)
+layout_mode = 2
+color = Color(0.1, 0.1, 0.2, 0.8)
+
+[node name="SlotLabel" type="Label" parent="FileSlots/Slot1"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -30.0
+offset_top = 10.0
+offset_right = 30.0
+offset_bottom = 25.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "FILE 2"
+
+[node name="StatusLabel" type="Label" parent="FileSlots/Slot1"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -30.0
+offset_top = 30.0
+offset_right = 30.0
+offset_bottom = 45.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "- Empty -"
+
+[node name="Slot2" type="ColorRect" parent="FileSlots"]
+custom_minimum_size = Vector2(80, 70)
+layout_mode = 2
+color = Color(0.1, 0.1, 0.2, 0.8)
+
+[node name="SlotLabel" type="Label" parent="FileSlots/Slot2"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -30.0
+offset_top = 10.0
+offset_right = 30.0
+offset_bottom = 25.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "FILE 3"
+
+[node name="StatusLabel" type="Label" parent="FileSlots/Slot2"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -30.0
+offset_top = 30.0
+offset_right = 30.0
+offset_bottom = 45.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "- Empty -"
+
+[node name="HintLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -80.0
+offset_top = -25.0
+offset_right = 80.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+text = "A/D: Move   Enter: Select   P: Playtest   Esc: Back"

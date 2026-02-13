@@ -1,0 +1,74 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/title_screen.gd" id="1_title"]
+[ext_resource type="Script" path="res://scripts/star_field.gd" id="2_stars"]
+
+[sub_resource type="Gradient" id="gradient_particles"]
+offsets = PackedFloat32Array(0.0, 0.3, 0.7, 1.0)
+colors = PackedColorArray(1, 0.9, 0.3, 1, 1, 0.5, 0.1, 0.9, 0.9, 0.2, 0.1, 0.6, 0.4, 0.1, 0.05, 0)
+
+[node name="TitleScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_title")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.12, 1)
+
+[node name="StarField" type="Node2D" parent="."]
+script = ExtResource("2_stars")
+
+[node name="MagicParticles" type="CPUParticles2D" parent="."]
+emitting = true
+amount = 200
+lifetime = 4.0
+speed_scale = 1.0
+randomness = 0.5
+direction = Vector2(0.42, -0.91)
+spread = 10.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 8.0
+initial_velocity_max = 15.0
+scale_amount_min = 1.5
+scale_amount_max = 2.5
+color = Color(1.0, 0.5, 0.1, 0.8)
+color_ramp = SubResource("gradient_particles")
+emission_shape = 3
+emission_rect_extents = Vector2(180, 0)
+position = Vector2(160, 185)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+text = "PIXEL DUNGEON"
+
+[node name="PromptLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 7
+horizontal_alignment = 1
+text = "- Press any key -"

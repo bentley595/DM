@@ -1,0 +1,169 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/character_select.gd" id="1_charselect"]
+[ext_resource type="Script" path="res://scripts/star_field.gd" id="2_stars"]
+[ext_resource type="Script" path="res://scripts/character_sprite.gd" id="3_sprite"]
+
+[sub_resource type="Gradient" id="gradient_particles"]
+offsets = PackedFloat32Array(0.0, 0.3, 0.7, 1.0)
+colors = PackedColorArray(1, 0.9, 0.3, 1, 1, 0.5, 0.1, 0.9, 0.9, 0.2, 0.1, 0.6, 0.4, 0.1, 0.05, 0)
+
+[node name="CharacterSelect" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_charselect")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.12, 1)
+
+[node name="StarField" type="Node2D" parent="."]
+script = ExtResource("2_stars")
+
+[node name="MagicParticles" type="CPUParticles2D" parent="."]
+emitting = true
+amount = 200
+lifetime = 4.0
+speed_scale = 1.0
+randomness = 0.5
+direction = Vector2(0.42, -0.91)
+spread = 10.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 8.0
+initial_velocity_max = 15.0
+scale_amount_min = 1.5
+scale_amount_max = 2.5
+color = Color(1.0, 0.5, 0.1, 0.8)
+color_ramp = SubResource("gradient_particles")
+emission_shape = 3
+emission_rect_extents = Vector2(180, 0)
+position = Vector2(160, 185)
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -80.0
+offset_top = 12.0
+offset_right = 80.0
+offset_bottom = 28.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+text = "CHOOSE YOUR CHARACTER"
+
+[node name="LeftArrow" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -73.0
+offset_top = -8.0
+offset_right = -57.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "<"
+
+[node name="CharacterPanel" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -50.0
+offset_top = -25.0
+offset_right = 50.0
+offset_bottom = 55.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.1, 0.1, 0.22, 0.85)
+
+[node name="Sprite" type="Node2D" parent="CharacterPanel"]
+position = Vector2(50, 20)
+script = ExtResource("3_sprite")
+
+[node name="ClassName" type="Label" parent="CharacterPanel"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -45.0
+offset_top = 42.0
+offset_right = 45.0
+offset_bottom = 54.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "Knight"
+
+[node name="Counter" type="Label" parent="CharacterPanel"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -30.0
+offset_top = 55.0
+offset_right = 30.0
+offset_bottom = 65.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+text = "1 / 20"
+
+[node name="RightArrow" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 57.0
+offset_top = -8.0
+offset_right = 73.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+vertical_alignment = 1
+text = ">"
+
+[node name="HintLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -105.0
+offset_top = -22.0
+offset_right = 105.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+text = "A/D: Browse   Enter: Select   Esc: Back"

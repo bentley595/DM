@@ -1,0 +1,154 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/name_entry.gd" id="1_nameentry"]
+[ext_resource type="Script" path="res://scripts/star_field.gd" id="2_stars"]
+[ext_resource type="Script" path="res://scripts/character_sprite.gd" id="3_sprite"]
+
+[sub_resource type="Gradient" id="gradient_particles"]
+offsets = PackedFloat32Array(0.0, 0.3, 0.7, 1.0)
+colors = PackedColorArray(1, 0.9, 0.3, 1, 1, 0.5, 0.1, 0.9, 0.9, 0.2, 0.1, 0.6, 0.4, 0.1, 0.05, 0)
+
+[sub_resource type="StyleBoxFlat" id="lineedit_normal"]
+bg_color = Color(0.08, 0.08, 0.18, 0.9)
+border_color = Color(0.5, 0.5, 0.5, 0.5)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+
+[sub_resource type="StyleBoxFlat" id="lineedit_focus"]
+bg_color = Color(0.1, 0.1, 0.22, 0.95)
+border_color = Color(0.9, 0.75, 0.3, 0.8)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+
+[node name="NameEntry" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_nameentry")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.12, 1)
+
+[node name="StarField" type="Node2D" parent="."]
+script = ExtResource("2_stars")
+
+[node name="MagicParticles" type="CPUParticles2D" parent="."]
+emitting = true
+amount = 200
+lifetime = 4.0
+speed_scale = 1.0
+randomness = 0.5
+direction = Vector2(0.42, -0.91)
+spread = 10.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 8.0
+initial_velocity_max = 15.0
+scale_amount_min = 1.5
+scale_amount_max = 2.5
+color = Color(1.0, 0.5, 0.1, 0.8)
+color_ramp = SubResource("gradient_particles")
+emission_shape = 3
+emission_rect_extents = Vector2(180, 0)
+position = Vector2(160, 185)
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -70.0
+offset_top = 12.0
+offset_right = 70.0
+offset_bottom = 28.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+text = "NAME YOUR HERO"
+
+[node name="InfoPanel" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -45.0
+offset_top = -30.0
+offset_right = 45.0
+offset_bottom = 30.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.1, 0.1, 0.22, 0.85)
+
+[node name="Sprite" type="Node2D" parent="InfoPanel"]
+position = Vector2(45, 20)
+script = ExtResource("3_sprite")
+
+[node name="ClassName" type="Label" parent="InfoPanel"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -35.0
+offset_top = 42.0
+offset_right = 35.0
+offset_bottom = 54.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+text = "Knight"
+
+[node name="NameInput" type="LineEdit" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -55.0
+offset_top = 38.0
+offset_right = 55.0
+offset_bottom = 53.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.3, 1)
+theme_override_colors/caret_color = Color(0.9, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 8
+theme_override_styles/normal = SubResource("lineedit_normal")
+theme_override_styles/focus = SubResource("lineedit_focus")
+max_length = 12
+alignment = 1
+placeholder_text = "Enter name..."
+
+[node name="HintLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -100.0
+offset_top = -22.0
+offset_right = 100.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+text = "Type a name, press Enter  |  Esc: Back"
