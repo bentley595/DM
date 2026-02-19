@@ -1,7 +1,13 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3_player"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="4_hud"]
+[ext_resource type="Script" path="res://scripts/hud_bar.gd" id="5_hudbar"]
+[ext_resource type="Script" path="res://scripts/hud_roll_cooldown.gd" id="6_hudroll"]
+[ext_resource type="Script" path="res://scripts/hud_ammo_display.gd" id="7_hudammo"]
+[ext_resource type="Script" path="res://scripts/training_dummy.gd" id="8_dummy"]
+[ext_resource type="Script" path="res://scripts/cursor.gd" id="9_cursor"]
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_game")
@@ -14,6 +20,10 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.05, 0.05, 0.12, 1)
 
+[node name="TrainingDummy" type="Node2D" parent="."]
+position = Vector2(220, 90)
+script = ExtResource("8_dummy")
+
 [node name="Player" parent="." instance=ExtResource("3_player")]
 position = Vector2(160, 90)
 
@@ -23,13 +33,38 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -50.0
+offset_left = -100.0
 offset_top = -20.0
-offset_right = 50.0
+offset_right = 100.0
 offset_bottom = -8.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
 theme_override_font_sizes/font_size = 8
 horizontal_alignment = 1
-text = "WASD: Move   Esc: Back"
+text = "WASD: Move   Space: Roll   LClick: Attack   RClick: Shoot   Esc: Back"
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("4_hud")
+
+[node name="HealthBar" type="Node2D" parent="HUD"]
+position = Vector2(8, 4)
+script = ExtResource("5_hudbar")
+
+[node name="MomentumBar" type="Node2D" parent="HUD"]
+position = Vector2(8, 10)
+script = ExtResource("5_hudbar")
+fill_color = Color(0.2, 0.4, 0.9, 1)
+outline_color = Color(0.08, 0.15, 0.4, 1)
+icon_type = "bolt"
+
+[node name="RollCooldown" type="Node2D" parent="HUD"]
+position = Vector2(8, 16)
+script = ExtResource("6_hudroll")
+
+[node name="AmmoDisplay" type="Node2D" parent="HUD"]
+position = Vector2(8, 22)
+script = ExtResource("7_hudammo")
+
+[node name="Cursor" type="Node2D" parent="."]
+script = ExtResource("9_cursor")

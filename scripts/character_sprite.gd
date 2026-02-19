@@ -76,13 +76,243 @@ var dir_walk_cycle: Dictionary = {}
 
 # ── Walk animation data ───────────────────────────────────────────────
 #
-# The walk cycle uses 4 frames at 6 fps (about 167ms per frame).
-# A full cycle (idle → left → idle → right) takes ~667ms — just like
-# classic SNES RPGs!
+# The walk cycle uses 4 frames at 12 fps (83ms per frame).
+# A full cycle (idle → left → idle → right) takes ~333ms — smooth
+# and snappy!
 
-## How many walk frames play per second.  6 fps matches that chunky
-## retro feel — fast enough to look like walking, slow enough to read.
-const WALK_FPS: float = 6.0
+## How many walk frames play per second.  12 fps feels fluid while
+## still looking like pixel art — no more chunkiness!
+const WALK_FPS: float = 12.0
+
+## How many tumble frames play per second during a roll.
+## 12 fps with 4 frames = one full somersault in ~0.33 seconds.
+const ROLL_FPS: float = 12.0
+
+# ── Tumble frames for roll animation ─────────────────────────────────
+#
+# These are 4 generic "ball" frames that show the character curled up
+# and tumbling forward.  They only use color indices 0-3:
+#   0 = transparent, 1 = outline, 2 = primary, 3 = highlight
+#
+# Because every character already has their own palette, the tumble
+# frames automatically look correct for ALL 20 characters — a Knight
+# tumbles in blue-steel, a Mage tumbles in purple, etc!
+#
+# The "head" (highlight area, index 3) rotates clockwise through the
+# 4 frames: top → right → bottom → left = one full somersault.
+
+## Frame 0: upright — head highlight on top.
+const ROLL_FRAME_0: Array = [
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],
+	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],
+	[0,0,0,1,3,3,3,3,3,3,1,0,0,0],
+	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+]
+
+## Frame 1: tilted right — head highlight on right side (mid-tumble).
+const ROLL_FRAME_1: Array = [
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,1,1,1,1,1,1,1,1,0,0,0],
+	[0,0,1,2,2,2,2,2,3,3,3,1,0,0],
+	[0,1,2,2,2,2,2,2,3,3,3,3,1,0],
+	[0,1,2,2,2,2,2,2,2,3,3,3,1,0],
+	[0,1,2,2,2,2,2,2,2,2,3,2,1,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,0,1,1,1,1,1,1,1,1,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+]
+
+## Frame 2: inverted — head highlight on bottom (upside-down).
+const ROLL_FRAME_2: Array = [
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],
+	[0,0,0,1,3,3,3,3,3,3,1,0,0,0],
+	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+]
+
+## Frame 3: tilted left — head highlight on left side (coming back up).
+const ROLL_FRAME_3: Array = [
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,1,1,1,1,1,1,1,1,0,0,0],
+	[0,0,1,3,3,3,2,2,2,2,2,1,0,0],
+	[0,1,3,3,3,3,2,2,2,2,2,2,1,0],
+	[0,1,3,3,3,2,2,2,2,2,2,2,1,0],
+	[0,1,2,3,2,2,2,2,2,2,2,2,1,0],
+	[0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+	[0,0,0,1,1,1,1,1,1,1,1,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+]
+
+## The 4 front-view tumble frames in order (used when facing up/down).
+var roll_frames: Array = [ROLL_FRAME_0, ROLL_FRAME_1, ROLL_FRAME_2, ROLL_FRAME_3]
+
+# ── Side-profile tumble frames ──────────────────────────────────────
+#
+# When rolling left or right, we show the tumble from the SIDE instead
+# of the front.  The body is taller and narrower when upright (because
+# you're seeing the character's depth, not their full width), and the
+# horizontal frames are a bit smaller/tighter.
+#
+# This makes it look like you're watching the character do a cartwheel
+# from the side, instead of always seeing the same front-view ball!
+
+## Side frame 0: upright side view — tall and narrow, head on top.
+const ROLL_SIDE_FRAME_0: Array = [
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,1,1,0,0,0,0,0,0],
+	[0,0,0,0,0,1,3,3,1,0,0,0,0,0],
+	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],
+	[0,0,0,0,1,2,3,3,2,1,0,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],
+	[0,0,0,0,0,1,2,2,1,0,0,0,0,0],
+	[0,0,0,0,0,0,1,1,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+]
+
+## Side frame 1: horizontal — head highlight on right (mid-tumble).
+const ROLL_SIDE_FRAME_1: Array = [
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,1,1,1,1,1,1,0,0,0,0],
+	[0,0,0,1,2,2,2,2,3,3,1,0,0,0],
+	[0,0,1,2,2,2,2,2,3,3,3,1,0,0],
+	[0,0,1,2,2,2,2,2,3,3,3,1,0,0],
+	[0,0,0,1,2,2,2,2,2,3,1,0,0,0],
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+]
+
+## Side frame 2: inverted side view — tall and narrow, head on bottom.
+const ROLL_SIDE_FRAME_2: Array = [
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,1,1,0,0,0,0,0,0],
+	[0,0,0,0,0,1,2,2,1,0,0,0,0,0],
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],
+	[0,0,0,0,1,2,3,3,2,1,0,0,0,0],
+	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],
+	[0,0,0,0,0,1,3,3,1,0,0,0,0,0],
+	[0,0,0,0,0,0,1,1,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+]
+
+## Side frame 3: horizontal — head highlight on left (coming back up).
+const ROLL_SIDE_FRAME_3: Array = [
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,1,1,1,1,1,1,0,0,0,0],
+	[0,0,0,1,3,3,2,2,2,2,1,0,0,0],
+	[0,0,1,3,3,3,2,2,2,2,2,1,0,0],
+	[0,0,1,3,3,3,2,2,2,2,2,1,0,0],
+	[0,0,0,1,3,2,2,2,2,2,1,0,0,0],
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+]
+
+## The 4 side-view tumble frames (used when facing left/right).
+var roll_side_frames: Array = [ROLL_SIDE_FRAME_0, ROLL_SIDE_FRAME_1, ROLL_SIDE_FRAME_2, ROLL_SIDE_FRAME_3]
+
+## Whichever set of roll frames is active for the current roll.
+## Gets set to either roll_frames (front) or roll_side_frames (side)
+## when a roll begins, based on facing direction.
+var active_roll_frames: Array = []
 
 ## The standing-still grid for the CURRENT direction.
 ## Updated by set_facing() whenever direction changes.
@@ -101,6 +331,21 @@ var anim_timer: float = 0.0
 
 ## Which of the 4 walk_cycle frames we're currently showing (0–3).
 var anim_frame: int = 0
+
+# ── Roll animation data ──────────────────────────────────────────
+#
+# During a roll, the character curls into a ball and tumbles forward.
+# We use 4 generic frames where a highlight rotates clockwise.
+# At 12 fps it looks like a fast somersault!
+
+## True when the roll spin animation is active.
+var is_rolling: bool = false
+
+## Timer for the roll spin frames (works like anim_timer).
+var roll_anim_timer: float = 0.0
+
+## Which of the 4 tumble frames we're currently showing (0–3).
+var roll_anim_frame: int = 0
 
 
 func set_character(character: Dictionary) -> void:
@@ -252,7 +497,56 @@ func set_walking(walking: bool) -> void:
 		queue_redraw()
 
 
+func set_rolling(rolling: bool) -> void:
+	## Toggle roll tumble animation on/off.
+	##
+	## When rolling starts, we switch to the generic tumble frames — a
+	## compact "ball" shape with a rotating highlight that looks like a
+	## forward somersault.  The tumble only uses colors 0-3 (transparent,
+	## outline, primary, highlight), so it automatically matches every
+	## character's palette!
+	##
+	## When rolling stops, we snap back to the idle grid for whatever
+	## direction the character is currently facing.
+	if rolling == is_rolling:
+		return  # No change
+
+	is_rolling = rolling
+
+	if rolling:
+		# Pick the right tumble frames based on facing direction.
+		# Left/right → side profile (tall narrow shape).
+		# Up/down → front view (round ball shape).
+		if facing == "left" or facing == "right":
+			active_roll_frames = roll_side_frames
+		else:
+			active_roll_frames = roll_frames
+		# Start the tumble from frame 0 (upright position).
+		roll_anim_timer = 0.0
+		roll_anim_frame = 0
+		pixel_grid = active_roll_frames[0]
+		queue_redraw()
+	else:
+		# Roll ended — snap back to the idle pose for current facing.
+		pixel_grid = idle_grid
+		queue_redraw()
+
+
 func _process(delta: float) -> void:
+	# ── Roll tumble animation (overrides walk) ────────────────────
+	# When rolling, cycle through the 4 tumble frames to show the
+	# character doing a forward somersault.  The return at the end
+	# skips the walk animation code so they don't fight each other.
+	if is_rolling:
+		roll_anim_timer += delta
+		var roll_frame_duration: float = 1.0 / ROLL_FPS
+		if roll_anim_timer >= roll_frame_duration:
+			roll_anim_timer -= roll_frame_duration
+			roll_anim_frame = (roll_anim_frame + 1) % 4
+			pixel_grid = active_roll_frames[roll_anim_frame]
+			queue_redraw()
+		return
+
 	# Only animate if we're walking AND have animation data.
 	# walk_cycle is empty on menu screens (no step grid provided),
 	# so this check keeps menus perfectly static.
@@ -264,7 +558,7 @@ func _process(delta: float) -> void:
 	anim_timer += delta
 
 	# Check if enough time has passed to advance to the next frame.
-	# At 6 fps, each frame lasts 1/6 = 0.1667 seconds.
+	# At 12 fps, each frame lasts 1/12 = 0.083 seconds.
 	var frame_duration: float = 1.0 / WALK_FPS
 	if anim_timer >= frame_duration:
 		# Subtract (don't reset to 0!) to prevent "drift".

@@ -54,7 +54,6 @@ class_name CharacterData
 ## This is the FRONT-FACING (down) idle pose — what you see when walking toward the camera.
 const GRID_ARMORED := [
 	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
-	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
 	[0,0,0,0,0,1,7,7,1,0,0,0,0,0],   # helmet crest (accent ornament)
 	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],   # helmet dome (highlight — light shining on top)
 	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],   # helmet middle (highlight stripe)
@@ -69,6 +68,7 @@ const GRID_ARMORED := [
 	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # hip (outline divides torso from legs)
 	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # upper legs
 	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # mid legs
+	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # lower legs
 	[0,0,0,1,2,2,0,0,2,2,1,0,0,0],   # boot cuff (primary color returns)
 	[0,0,1,2,3,2,0,0,2,3,2,1,0,0],   # boot with highlight shine
 	[0,0,1,2,2,2,0,0,2,2,2,1,0,0],   # boot
@@ -79,7 +79,6 @@ const GRID_ARMORED := [
 ## Upper body (rows 0–11) is identical to GRID_ARMORED.
 ## Only the legs/boots (rows 12–19) change — this is what creates the walk!
 const GRID_ARMORED_STEP := [
-	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
 	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
 	[0,0,0,0,0,1,7,7,1,0,0,0,0,0],   # (same) helmet crest
 	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],   # (same) helmet dome
@@ -95,6 +94,7 @@ const GRID_ARMORED_STEP := [
 	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # (same) hip
 	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← left leg shifted 1px left
 	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← left leg shifted 1px left
+	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← lower leg shifted (new row)
 	[0,0,1,2,2,0,0,0,2,2,1,0,0,0],   # ← boot cuff shifted
 	[0,1,2,3,2,0,0,0,2,3,2,1,0,0],   # ← boot highlight shifted
 	[0,1,2,2,2,0,0,0,2,2,2,1,0,0],   # ← boot shifted
@@ -111,7 +111,6 @@ const GRID_ARMORED_STEP := [
 ##   Row 10: belt buckles → simpler from behind
 const GRID_ARMORED_UP := [
 	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
-	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
 	[0,0,0,0,0,1,7,7,1,0,0,0,0,0],   # (same) helmet crest
 	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],   # (same) helmet dome
 	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],   # (same) helmet middle
@@ -126,6 +125,7 @@ const GRID_ARMORED_UP := [
 	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # (same) hip
 	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # (same) upper legs
 	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # (same) mid legs
+	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # lower legs
 	[0,0,0,1,2,2,0,0,2,2,1,0,0,0],   # (same) boot cuff
 	[0,0,1,2,3,2,0,0,2,3,2,1,0,0],   # (same) boot
 	[0,0,1,2,2,2,0,0,2,2,2,1,0,0],   # (same) boot
@@ -135,7 +135,6 @@ const GRID_ARMORED_UP := [
 ## Armored back view, left-step frame.
 ## Head rows (0-11) from GRID_ARMORED_UP + leg rows (12-19) from GRID_ARMORED_STEP.
 const GRID_ARMORED_UP_STEP := [
-	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
 	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
 	[0,0,0,0,0,1,7,7,1,0,0,0,0,0],   # (same) helmet crest
 	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],   # (same) helmet dome
@@ -151,6 +150,7 @@ const GRID_ARMORED_UP_STEP := [
 	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # (same) hip
 	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← left leg shifted (from STEP)
 	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← shifted
+	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← lower leg shifted (new row)
 	[0,0,1,2,2,0,0,0,2,2,1,0,0,0],   # ← boot cuff shifted
 	[0,1,2,3,2,0,0,0,2,3,2,1,0,0],   # ← boot shifted
 	[0,1,2,2,2,0,0,0,2,2,2,1,0,0],   # ← boot shifted
@@ -165,31 +165,30 @@ const GRID_ARMORED_UP_STEP := [
 ##   Row 5: chin narrower (one fewer pixel)
 const GRID_ARMORED_LEFT := [
 	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
-	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
 	[0,0,0,0,0,1,7,7,1,0,0,0,0,0],   # (same) helmet crest
 	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],   # (same) helmet dome
 	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],   # (same) helmet middle
 	[0,0,1,1,2,2,2,2,2,2,1,0,0,0],   # ← visor extends 1px left
 	[0,0,0,1,4,5,4,4,2,2,1,0,0,0],   # ← one eye, helmet on right side
 	[0,0,0,0,1,4,4,4,1,0,0,0,0,0],   # ← narrower chin
-	[0,1,1,2,3,2,7,7,2,3,2,1,1,0],   # (same) shoulder plates
-	[0,0,1,2,2,3,7,7,3,2,2,1,0,0],   # (same) upper chest
-	[0,0,1,2,3,2,2,2,2,3,2,1,0,0],   # (same) chest plate
-	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],   # (same) lower chest
-	[0,0,0,1,7,2,7,7,2,7,1,0,0,0],   # (same) belt
-	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # (same) hip
-	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # (same) upper legs
-	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # (same) mid legs
-	[0,0,0,1,2,2,0,0,2,2,1,0,0,0],   # (same) boot cuff
-	[0,0,1,2,3,2,0,0,2,3,2,1,0,0],   # (same) boot
-	[0,0,1,2,2,2,0,0,2,2,2,1,0,0],   # (same) boot
-	[0,0,0,1,1,1,0,0,1,1,1,0,0,0],   # (same) boot sole
+	[0,0,0,1,3,2,7,7,2,2,1,0,0,0],   # ← shoulder narrower (side view)
+	[0,0,0,0,1,2,7,7,2,1,0,0,0,0],   # ← chest narrower (side view)
+	[0,0,0,0,1,3,2,2,3,1,0,0,0,0],   # ← chest plate side view
+	[0,0,0,0,1,2,3,3,2,1,0,0,0,0],   # ← lower chest narrower
+	[0,0,0,0,1,7,7,7,7,1,0,0,0,0],   # ← belt narrower
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← hip solid (no gap)
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← legs solid (side view)
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← legs solid
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← legs solid
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],   # ← boot cuff narrower
+	[0,0,0,0,1,2,3,3,2,1,0,0,0,0],   # ← boot narrower
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],   # ← boot narrower
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],   # ← sole narrower
 ]
 
 ## Armored left profile, left-step frame.
 ## Head rows (0-11) from GRID_ARMORED_LEFT + leg rows (12-19) from GRID_ARMORED_STEP.
 const GRID_ARMORED_LEFT_STEP := [
-	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
 	[0,0,0,0,0,0,0,0,0,0,0,0,0,0],   # (transparent — padding row)
 	[0,0,0,0,0,1,7,7,1,0,0,0,0,0],   # (same) helmet crest
 	[0,0,0,0,1,3,3,3,3,1,0,0,0,0],   # (same) helmet dome
@@ -197,18 +196,19 @@ const GRID_ARMORED_LEFT_STEP := [
 	[0,0,1,1,2,2,2,2,2,2,1,0,0,0],   # ← visor extends left
 	[0,0,0,1,4,5,4,4,2,2,1,0,0,0],   # ← one eye
 	[0,0,0,0,1,4,4,4,1,0,0,0,0,0],   # ← narrower chin
-	[0,1,1,2,3,2,7,7,2,3,2,1,1,0],   # (same) shoulders
-	[0,0,1,2,2,3,7,7,3,2,2,1,0,0],   # (same) upper chest
-	[0,0,1,2,3,2,2,2,2,3,2,1,0,0],   # (same) chest plate
-	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],   # (same) lower chest
-	[0,0,0,1,7,2,7,7,2,7,1,0,0,0],   # (same) belt
-	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # (same) hip
-	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← left leg shifted (from STEP)
-	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← shifted
-	[0,0,1,2,2,0,0,0,2,2,1,0,0,0],   # ← boot cuff shifted
-	[0,1,2,3,2,0,0,0,2,3,2,1,0,0],   # ← boot shifted
-	[0,1,2,2,2,0,0,0,2,2,2,1,0,0],   # ← boot shifted
-	[0,0,1,1,1,0,0,0,1,1,1,0,0,0],   # ← sole shifted
+	[0,0,0,1,3,2,7,7,2,2,1,0,0,0],   # ← shoulder (same as left idle)
+	[0,0,0,0,1,2,7,7,2,1,0,0,0,0],   # ← chest (same)
+	[0,0,0,0,1,3,2,2,3,1,0,0,0,0],   # ← chest plate (same)
+	[0,0,0,0,1,2,3,3,2,1,0,0,0,0],   # ← lower chest (same)
+	[0,0,0,0,1,7,7,7,7,1,0,0,0,0],   # ← belt (same)
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← hip solid (same)
+	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← legs split (front forward, back stays)
+	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← split
+	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← split
+	[0,0,1,2,2,0,0,0,2,2,1,0,0,0],   # ← boot cuff split
+	[0,0,1,2,3,0,0,0,3,2,1,0,0,0],   # ← boot split
+	[0,0,1,2,2,0,0,0,2,2,1,0,0,0],   # ← boot split
+	[0,0,0,1,1,0,0,0,1,1,0,0,0,0],   # ← sole split
 ]
 
 ## Tall pointed hat, flowing robes that widen dramatically at the bottom.
@@ -326,20 +326,20 @@ const GRID_ROBED_LEFT := [
 	[0,0,1,2,2,2,2,2,2,2,1,0,0,0],   # ← hat brim extends 1px left
 	[0,0,0,1,4,5,4,4,2,2,1,0,0,0],   # ← one eye
 	[0,0,0,0,1,4,4,4,1,0,0,0,0,0],   # ← narrower chin
-	[0,0,0,1,2,2,7,7,2,2,1,0,0,0],   # (same) collar
-	[0,0,1,2,2,3,2,2,3,2,2,1,0,0],   # (same) robe upper
-	[0,0,1,2,3,2,2,2,2,3,2,1,0,0],   # (same) robe chest
-	[0,0,1,2,2,2,3,3,2,2,2,1,0,0],   # (same) robe middle
-	[0,0,1,2,2,2,7,7,2,2,2,1,0,0],   # (same) robe sash
-	[0,1,2,2,2,3,2,2,3,2,2,2,1,0],   # (same) robe widens
-	[0,1,2,2,3,2,2,2,2,3,2,2,1,0],   # (same) robe lower body
-	[1,2,2,2,2,2,3,3,2,2,2,2,2,1],   # (same) robe bottom
-	[1,2,2,3,2,2,2,2,2,2,3,2,2,1],   # (same) robe hem
-	[0,1,2,2,2,2,2,2,2,2,2,2,1,0],   # (same) robe gathering
-	[0,1,2,2,2,1,0,0,1,2,2,2,1,0],   # (same) robe slit
-	[0,0,1,2,1,0,0,0,0,1,2,1,0,0],   # (same) slit widens
-	[0,0,0,1,4,4,0,0,4,4,1,0,0,0],   # (same) feet
-	[0,0,0,0,1,1,0,0,1,1,0,0,0,0],   # (same) soles
+	[0,0,0,0,1,2,7,7,2,1,0,0,0,0],   # ← collar narrower (side view)
+	[0,0,0,1,2,3,2,2,3,2,1,0,0,0],   # ← robe upper narrower
+	[0,0,0,1,3,2,2,2,2,3,1,0,0,0],   # ← robe chest narrower
+	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],   # ← robe middle narrower
+	[0,0,0,1,2,2,7,7,2,2,1,0,0,0],   # ← robe sash narrower
+	[0,0,1,2,2,3,2,2,3,2,1,0,0,0],   # ← robe widens (side)
+	[0,0,1,2,3,2,2,2,2,3,1,0,0,0],   # ← robe lower (side)
+	[0,1,2,2,2,2,3,3,2,2,2,1,0,0],   # ← robe bottom (side)
+	[0,1,2,3,2,2,2,2,2,3,2,1,0,0],   # ← robe hem (side)
+	[0,0,1,2,2,2,2,2,2,2,1,0,0,0],   # ← robe gathering (side)
+	[0,0,0,1,2,2,2,2,2,1,0,0,0,0],   # ← robe bottom taper
+	[0,0,0,0,1,2,2,2,1,0,0,0,0,0],   # ← robe hem taper
+	[0,0,0,0,1,4,4,4,4,1,0,0,0,0],   # ← feet solid (side view)
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],   # ← soles solid
 ]
 
 ## Robed left profile, left-step frame.
@@ -351,20 +351,20 @@ const GRID_ROBED_LEFT_STEP := [
 	[0,0,1,2,2,2,2,2,2,2,1,0,0,0],   # ← hat brim extends left
 	[0,0,0,1,4,5,4,4,2,2,1,0,0,0],   # ← one eye
 	[0,0,0,0,1,4,4,4,1,0,0,0,0,0],   # ← narrower chin
-	[0,0,0,1,2,2,7,7,2,2,1,0,0,0],   # (same) collar
-	[0,0,1,2,2,3,2,2,3,2,2,1,0,0],   # (same) robe upper
-	[0,0,1,2,3,2,2,2,2,3,2,1,0,0],   # (same) robe chest
-	[0,0,1,2,2,2,3,3,2,2,2,1,0,0],   # (same) robe middle
-	[0,0,1,2,2,2,7,7,2,2,2,1,0,0],   # (same) robe sash
-	[0,1,2,2,2,3,2,2,3,2,2,2,1,0],   # (same) robe widens
-	[0,1,2,2,3,2,2,2,2,3,2,2,1,0],   # (same) robe lower body
-	[1,2,2,2,2,2,3,3,2,2,2,2,2,1],   # (same) robe bottom
-	[1,2,2,3,2,2,2,2,2,2,3,2,2,1],   # (same) robe hem
-	[0,1,2,2,2,2,2,2,2,2,2,2,1,0],   # (same) robe gathering
-	[1,2,2,2,1,0,0,0,1,2,2,2,1,0],   # ← slit shifted (from STEP)
-	[0,1,2,1,0,0,0,0,0,1,2,1,0,0],   # ← slit shifted
-	[0,0,1,4,4,0,0,0,4,4,1,0,0,0],   # ← foot shifted
-	[0,0,0,1,1,0,0,0,1,1,0,0,0,0],   # ← sole shifted
+	[0,0,0,0,1,2,7,7,2,1,0,0,0,0],   # ← collar (same as left idle)
+	[0,0,0,1,2,3,2,2,3,2,1,0,0,0],   # ← robe upper (same)
+	[0,0,0,1,3,2,2,2,2,3,1,0,0,0],   # ← robe chest (same)
+	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],   # ← robe middle (same)
+	[0,0,0,1,2,2,7,7,2,2,1,0,0,0],   # ← robe sash (same)
+	[0,0,1,2,2,3,2,2,3,2,1,0,0,0],   # ← robe widens (same)
+	[0,0,1,2,3,2,2,2,2,3,1,0,0,0],   # ← robe lower (same)
+	[0,1,2,2,2,2,3,3,2,2,2,1,0,0],   # ← robe bottom (same)
+	[0,1,2,3,2,2,2,2,2,3,2,1,0,0],   # ← robe hem (same)
+	[0,0,1,2,2,2,2,2,2,2,1,0,0,0],   # ← robe gathering (same)
+	[0,0,1,2,2,0,0,0,2,2,1,0,0,0],   # ← robe opens into split
+	[0,0,1,2,2,0,0,0,2,2,1,0,0,0],   # ← robe hem split
+	[0,0,1,4,4,0,0,0,4,4,1,0,0,0],   # ← feet split (front forward, back stays)
+	[0,0,0,1,1,0,0,0,1,1,0,0,0,0],   # ← soles split
 ]
 
 ## Deep hood with accent stripes, wrapped chest, slim agile legs.
@@ -484,18 +484,18 @@ const GRID_LIGHT_LEFT := [
 	[0,0,1,2,2,2,2,2,2,2,1,0,0,0],   # ← hood extends 1px left
 	[0,0,0,1,4,5,4,4,2,2,1,0,0,0],   # ← one eye
 	[0,0,0,0,1,4,4,4,1,0,0,0,0,0],   # ← narrower chin
-	[0,0,0,1,2,7,2,2,7,2,1,0,0,0],   # (same) chest straps
-	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],   # (same) chest highlight
-	[0,0,1,2,2,3,2,2,3,2,2,1,0,0],   # (same) torso
-	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],   # (same) lower torso
-	[0,0,0,1,7,2,7,7,2,7,1,0,0,0],   # (same) belt
-	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # (same) hip
-	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # (same) upper legs
-	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # (same) mid legs
-	[0,0,0,1,4,4,0,0,4,4,1,0,0,0],   # (same) ankle wraps
-	[0,0,0,1,4,4,0,0,4,4,1,0,0,0],   # (same) boots
-	[0,0,0,1,4,5,0,0,5,4,1,0,0,0],   # (same) boot detail
-	[0,0,0,0,1,1,0,0,1,1,0,0,0,0],   # (same) boot sole
+	[0,0,0,0,1,7,2,2,7,1,0,0,0,0],   # ← chest straps narrower (side)
+	[0,0,0,0,1,2,3,3,2,1,0,0,0,0],   # ← chest narrower
+	[0,0,0,1,2,3,2,2,3,2,1,0,0,0],   # ← torso (side view)
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],   # ← lower torso narrower
+	[0,0,0,0,1,7,7,7,7,1,0,0,0,0],   # ← belt narrower
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← hip solid (no gap)
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← legs solid (side view)
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← legs solid
+	[0,0,0,0,1,4,4,4,4,1,0,0,0,0],   # ← ankle wraps narrower
+	[0,0,0,0,1,4,4,4,4,1,0,0,0,0],   # ← boots narrower
+	[0,0,0,0,1,4,5,5,4,1,0,0,0,0],   # ← boot detail narrower
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],   # ← sole narrower
 ]
 
 ## Light armor left profile, left-step frame.
@@ -509,18 +509,18 @@ const GRID_LIGHT_LEFT_STEP := [
 	[0,0,1,2,2,2,2,2,2,2,1,0,0,0],   # ← hood extends left
 	[0,0,0,1,4,5,4,4,2,2,1,0,0,0],   # ← one eye
 	[0,0,0,0,1,4,4,4,1,0,0,0,0,0],   # ← narrower chin
-	[0,0,0,1,2,7,2,2,7,2,1,0,0,0],   # (same) chest straps
-	[0,0,0,1,2,2,3,3,2,2,1,0,0,0],   # (same) chest
-	[0,0,1,2,2,3,2,2,3,2,2,1,0,0],   # (same) torso
-	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],   # (same) lower torso
-	[0,0,0,1,7,2,7,7,2,7,1,0,0,0],   # (same) belt
-	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # (same) hip
-	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← left leg shifted (from STEP)
-	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← shifted
-	[0,0,1,4,4,0,0,0,4,4,1,0,0,0],   # ← ankle shifted
-	[0,0,1,4,4,0,0,0,4,4,1,0,0,0],   # ← boot shifted
-	[0,0,1,4,5,0,0,0,5,4,1,0,0,0],   # ← boot detail shifted
-	[0,0,0,1,1,0,0,0,1,1,0,0,0,0],   # ← sole shifted
+	[0,0,0,0,1,7,2,2,7,1,0,0,0,0],   # ← chest straps (same as left idle)
+	[0,0,0,0,1,2,3,3,2,1,0,0,0,0],   # ← chest (same)
+	[0,0,0,1,2,3,2,2,3,2,1,0,0,0],   # ← torso (same)
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],   # ← lower torso (same)
+	[0,0,0,0,1,7,7,7,7,1,0,0,0,0],   # ← belt (same)
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← hip solid (same)
+	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← legs split (front forward, back stays)
+	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← split
+	[0,0,1,4,4,0,0,0,4,4,1,0,0,0],   # ← ankle split
+	[0,0,1,4,4,0,0,0,4,4,1,0,0,0],   # ← boot split
+	[0,0,1,4,5,0,0,0,5,4,1,0,0,0],   # ← boot detail split
+	[0,0,0,1,1,0,0,0,1,1,0,0,0,0],   # ← sole split
 ]
 
 ## Wide-brim hat with accent trim, buttoned shirt, neat shoes.
@@ -637,18 +637,18 @@ const GRID_CLOTHED_LEFT := [
 	[0,0,0,1,2,2,2,2,1,0,0,0,0,0],   # ← hat base shifts left
 	[0,0,0,1,4,5,4,4,2,2,1,0,0,0],   # ← one eye
 	[0,0,0,0,1,4,4,4,1,0,0,0,0,0],   # ← narrower chin
-	[0,0,1,2,2,3,2,2,3,2,2,1,0,0],   # (same) shoulders
-	[0,0,1,2,3,2,2,2,2,3,2,1,0,0],   # (same) shirt upper
-	[0,0,0,1,2,2,7,7,2,2,1,0,0,0],   # (same) shirt buttons
-	[0,0,0,1,2,3,2,2,3,2,1,0,0,0],   # (same) shirt lower
-	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],   # (same) shirt bottom
-	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # (same) hip
-	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # (same) upper legs
-	[0,0,0,1,6,6,0,0,6,6,1,0,0,0],   # (same) mid legs
-	[0,0,0,1,4,4,0,0,4,4,1,0,0,0],   # (same) ankle
-	[0,0,1,4,4,4,0,0,4,4,4,1,0,0],   # (same) shoes
-	[0,0,1,4,5,4,0,0,4,5,4,1,0,0],   # (same) shoe detail
-	[0,0,0,1,1,1,0,0,1,1,1,0,0,0],   # (same) shoe sole
+	[0,0,0,1,2,3,2,2,3,1,0,0,0,0],   # ← shoulders narrower (side view)
+	[0,0,0,0,1,3,2,2,3,1,0,0,0,0],   # ← shirt upper narrower
+	[0,0,0,0,1,2,7,7,2,1,0,0,0,0],   # ← shirt buttons narrower
+	[0,0,0,0,1,3,2,2,3,1,0,0,0,0],   # ← shirt lower narrower
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],   # ← shirt bottom narrower
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← hip solid (no gap)
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← legs solid (side view)
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← legs solid
+	[0,0,0,0,1,4,4,4,4,1,0,0,0,0],   # ← ankle narrower
+	[0,0,0,0,1,4,4,4,4,1,0,0,0,0],   # ← shoes narrower
+	[0,0,0,0,1,4,5,5,4,1,0,0,0,0],   # ← shoe detail narrower
+	[0,0,0,0,0,1,1,1,1,0,0,0,0,0],   # ← sole narrower
 ]
 
 ## Clothed left profile, left-step frame.
@@ -662,18 +662,18 @@ const GRID_CLOTHED_LEFT_STEP := [
 	[0,0,0,1,2,2,2,2,1,0,0,0,0,0],   # ← hat base shifts left
 	[0,0,0,1,4,5,4,4,2,2,1,0,0,0],   # ← one eye
 	[0,0,0,0,1,4,4,4,1,0,0,0,0,0],   # ← narrower chin
-	[0,0,1,2,2,3,2,2,3,2,2,1,0,0],   # (same) shoulders
-	[0,0,1,2,3,2,2,2,2,3,2,1,0,0],   # (same) shirt upper
-	[0,0,0,1,2,2,7,7,2,2,1,0,0,0],   # (same) shirt buttons
-	[0,0,0,1,2,3,2,2,3,2,1,0,0,0],   # (same) shirt lower
-	[0,0,0,1,2,2,2,2,2,2,1,0,0,0],   # (same) shirt bottom
-	[0,0,0,1,6,6,1,1,6,6,1,0,0,0],   # (same) hip
-	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← left leg shifted (from STEP)
-	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← shifted
-	[0,0,1,4,4,0,0,0,4,4,1,0,0,0],   # ← ankle shifted
-	[0,1,4,4,4,0,0,0,4,4,4,1,0,0],   # ← shoe shifted
-	[0,1,4,5,4,0,0,0,4,5,4,1,0,0],   # ← shoe detail shifted
-	[0,0,1,1,1,0,0,0,1,1,1,0,0,0],   # ← sole shifted
+	[0,0,0,1,2,3,2,2,3,1,0,0,0,0],   # ← shoulders (same as left idle)
+	[0,0,0,0,1,3,2,2,3,1,0,0,0,0],   # ← shirt upper (same)
+	[0,0,0,0,1,2,7,7,2,1,0,0,0,0],   # ← shirt buttons (same)
+	[0,0,0,0,1,3,2,2,3,1,0,0,0,0],   # ← shirt lower (same)
+	[0,0,0,0,1,2,2,2,2,1,0,0,0,0],   # ← shirt bottom (same)
+	[0,0,0,0,1,6,6,6,6,1,0,0,0,0],   # ← hip solid (same)
+	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← legs split (front forward, back stays)
+	[0,0,1,6,6,0,0,0,6,6,1,0,0,0],   # ← split
+	[0,0,1,4,4,0,0,0,4,4,1,0,0,0],   # ← ankle split
+	[0,0,1,4,4,0,0,0,4,4,1,0,0,0],   # ← shoe split
+	[0,0,1,4,5,0,0,0,5,4,1,0,0,0],   # ← shoe detail split
+	[0,0,0,1,1,0,0,0,1,1,0,0,0,0],   # ← sole split
 ]
 
 

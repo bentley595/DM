@@ -84,6 +84,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		transitioning = true
 		get_tree().set_meta("selected_character_index", 0)
 		get_tree().set_meta("player_name", "Test")
+		get_tree().set_meta("is_playtest", true)
 		get_tree().change_scene_to_file("res://scenes/game.tscn")
 		get_viewport().set_input_as_handled()
 

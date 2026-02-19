@@ -65,6 +65,10 @@ Each character grid is a 14×20 2D array. Color indices:
 
 Walk cycle frame 3 for left/right directions uses `_build_composite()` to avoid the double-mirror head-flip bug (mirroring a step grid flips the head too, so we composite the correct head with mirrored legs).
 
+## Git
+
+- **Never** add `Co-Authored-By` lines to commit messages — the user wants full ownership of commits
+
 ## Conventions
 
 - Line endings are normalized to LF (`.gitattributes`)
