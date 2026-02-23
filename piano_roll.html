@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIXEL DUNGEON — Music Sequencer</title>
+<style>
+/* ===== RESET & BASE ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+}
+
+/* ===== TOOLBAR ===== */
+#toolbar {
+    background: #16213e;
+    border-bottom: 2px solid #0f3460;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+#toolbar h1 {
+    font-size: 16px;
+    color: #e94560;
+    margin-right: 8px;
+    white-space: nowrap;
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    border-left: 1px solid #0f3460;
+}
+
+.toolbar-group:first-child { border-left: none; }
+
+label {
+    font-size: 12px;
+    color: #a0a0b0;
+}
+
+button {
+    background: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #533483;
+    padding: 5px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.15s;
+}
+
+button:hover { background: #533483; }
+button.active { background: #e94560; border-color: #e94560; }
+
+input[type="number"] {
+    background: #0a0a1a;
+    color: #e0e0e0;
+    border: 1px solid #533483;
+    padding: 4px 6px;
+    width: 60px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+select {
+    background: #0a0a1a;
+    color: #e0e0e0;
+    border: 1px solid #533483;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+input[type="range"] {
+    width: 60px;
+    accent-color: #e94560;
+}
+
+/* ===== TRACK TABS ===== */
+.track-tab {
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    border: 2px solid transparent;
+    transition: all 0.15s;
+}
+
+.track-tab:hover { opacity: 0.8; }
+.track-tab.selected { border-color: white; }
+
+/* ===== MAIN AREA ===== */
+#main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+}
+
+#piano-keys {
+    width: 48px;
+    flex-shrink: 0;
+    background: #111128;
+    border-right: 2px solid #0f3460;
+    overflow: hidden;
+}
+
+#grid-container {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+}
+
+#grid-canvas {
+    display: block;
+    cursor: crosshair;
+}
+
+#piano-canvas {
+    display: block;
+}
+
+/* ===== TEMPO LANE ===== */
+#tempo-lane {
+    height: 32px;
+    background: #111128;
+    border-top: 2px solid #0f3460;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 0 0 48px;
+    overflow: hidden;
+}
+
+#tempo-canvas {
+    display: block;
+}
+
+/* ===== STATUS BAR ===== */
+#status {
+    background: #16213e;
+    border-top: 1px solid #0f3460;
+    padding: 4px 16px;
+    font-size: 11px;
+    color: #808090;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* ===== TOAST ===== */
+#toast {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #533483;
+    color: white;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: transform 0.3s ease;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+#toast.show {
+    transform: translateX(-50%) translateY(0);
+}
+</style>
+</head>
+<body>
+
+<!-- ===== TOOLBAR ===== -->
+<div id="toolbar">
+    <h1>PIXEL DUNGEON</h1>
+
+    <div class="toolbar-group">
+        <button id="btn-play" title="Space to toggle">&#9654; Play</button>
+        <button id="btn-stop">&#9632; Stop</button>
+    </div>
+
+    <div class="toolbar-group">
+        <label>BPM</label>
+        <input type="number" id="bpm-input" value="120" min="40" max="300" step="1">
+    </div>
+
+    <div class="toolbar-group">
+        <label>Bars</label>
+        <input type="number" id="bars-input" value="4" min="1" max="64" step="1">
+    </div>
+
+    <div class="toolbar-group">
+        <label>Track</label>
+        <span class="track-tab selected" data-track="0" style="background:#e94560; color:white;">1</span>
+        <span class="track-tab" data-track="1" style="background:#4ecdc4; color:white;">2</span>
+        <span class="track-tab" data-track="2" style="background:#f7d354; color:#333;">3</span>
+        <span class="track-tab" data-track="3" style="background:#a8e6cf; color:#333;">4</span>
+    </div>
+
+    <div class="toolbar-group">
+        <label>Wave</label>
+        <select id="waveform-select">
+            <option value="square">Square</option>
+            <option value="triangle">Triangle</option>
+            <option value="sawtooth">Sawtooth</option>
+            <option value="sine">Sine</option>
+            <option value="noise">Noise</option>
+        </select>
+    </div>
+
+    <div class="toolbar-group">
+        <label>Vol</label>
+        <input type="range" id="volume-slider" min="0" max="100" value="80">
+    </div>
+
+    <div class="toolbar-group">
+        <button id="btn-export">Export GDScript</button>
+        <button id="btn-clear">Clear Track</button>
+    </div>
+
+    <div class="toolbar-group">
+        <button id="btn-save">Save</button>
+        <button id="btn-load">Load</button>
+    </div>
+</div>
+
+<!-- ===== MAIN AREA ===== -->
+<div id="main">
+    <div id="piano-keys">
+        <canvas id="piano-canvas"></canvas>
+    </div>
+    <div id="grid-container">
+        <canvas id="grid-canvas"></canvas>
+    </div>
+</div>
+
+<!-- ===== TEMPO LANE ===== -->
+<div id="tempo-lane">
+    <canvas id="tempo-canvas"></canvas>
+</div>
+
+<!-- ===== STATUS BAR ===== -->
+<div id="status">
+    <span id="status-left">Click to place/remove notes | Drag to extend | Space to play</span>
+    <span id="status-right">Bar 1 | Beat 1</span>
+</div>
+
+<!-- ===== TOAST ===== -->
+<div id="toast"></div>
+
+<script>
+// =============================================================================
+//  PIXEL DUNGEON — Piano Roll Music Sequencer
+//  A single-file web app for composing chiptune music
+// =============================================================================
+
+// ===== CONSTANTS =====
+// These define the visual layout and musical structure
+
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const OCTAVE_LOW = 3;     // Lowest octave we show
+const OCTAVE_HIGH = 5;    // Highest octave we show
+const TOTAL_NOTES = (OCTAVE_HIGH - OCTAVE_LOW + 1) * 12;  // 36 notes (3 octaves)
+const SUBDIVISIONS = 4;   // 16th notes per beat (4 sixteenths = 1 quarter note)
+const BEATS_PER_BAR = 4;  // Standard 4/4 time
+const TICKS_PER_BAR = BEATS_PER_BAR * SUBDIVISIONS;  // 16 ticks per bar
+
+// Grid cell sizes in pixels
+const CELL_W = 20;   // Width of each 16th-note column
+const CELL_H = 14;   // Height of each note row
+const PIANO_W = 48;  // Width of the piano keys panel
+
+// Track colors — each track gets its own color so you can tell them apart
+const TRACK_COLORS = [
+    { bg: '#e94560', note: '#ff6b81', dim: '#a03050' },  // Track 1: Red
+    { bg: '#4ecdc4', note: '#7ee8e0', dim: '#2a8a84' },  // Track 2: Teal
+    { bg: '#f7d354', note: '#ffe680', dim: '#b89a30' },  // Track 3: Yellow
+    { bg: '#a8e6cf', note: '#c8f7e0', dim: '#6aab8e' },  // Track 4: Green
+];
+
+// Musical note colors for the piano keys
+const BLACK_KEYS = [1, 3, 6, 8, 10];  // C#, D#, F#, G#, A# are black keys
+
+// ===== STATE =====
+// This object holds ALL the data for our sequencer.
+// "State" means "the current situation" — what notes are placed, what's playing, etc.
+
+const state = {
+    bpm: 120,
+    totalBars: 4,
+    currentTrack: 0,     // Which track (0-3) is selected
+    tracks: [            // Array of 4 track objects
+        { name: 'Lead',    waveform: 'square',   volume: 0.8, notes: [] },
+        { name: 'Harmony', waveform: 'square',   volume: 0.8, notes: [] },
+        { name: 'Bass',    waveform: 'triangle', volume: 0.8, notes: [] },
+        { name: 'Perc',    waveform: 'noise',    volume: 0.8, notes: [] },
+    ],
+    tempoChanges: [[0, 120]],  // [bar, bpm] pairs — starts at bar 0, 120 BPM
+    playing: false,
+    playStartTime: 0,
+    playTickPosition: 0,
+
+    // Mouse interaction state
+    dragNote: null,        // The note currently being dragged (to extend it)
+    isDragging: false,
+
+    // Undo/redo stacks
+    undoStack: [],
+    redoStack: [],
+
+    // Scroll position (for syncing piano keys with grid)
+    scrollTop: 0,
+};
+
+// ===== HELPER: MIDI pitch to note name =====
+// MIDI is a numbering system for musical notes. Middle C = 60.
+// This function converts a number like 60 into "C4"
+function midiToName(midi) {
+    const octave = Math.floor(midi / 12) - 1;
+    const note = NOTE_NAMES[midi % 12];
+    return note + octave;
+}
+
+// Convert our grid row (0 = top = highest note) to a MIDI pitch number
+function rowToMidi(row) {
+    // Row 0 = highest note (B5 = MIDI 83), row 35 = lowest note (C3 = MIDI 48)
+    return (OCTAVE_HIGH * 12 + 11 + 12) - row;  // +12 because MIDI octave -1 starts at 0
+}
+
+// Opposite: convert MIDI pitch back to a grid row
+function midiToRow(midi) {
+    return (OCTAVE_HIGH * 12 + 11 + 12) - midi;
+}
+
+// ===== CANVAS SETUP =====
+const gridCanvas = document.getElementById('grid-canvas');
+const gridCtx = gridCanvas.getContext('2d');
+const pianoCanvas = document.getElementById('piano-canvas');
+const pianoCtx = pianoCanvas.getContext('2d');
+const tempoCanvas = document.getElementById('tempo-canvas');
+const tempoCtx = tempoCanvas.getContext('2d');
+const gridContainer = document.getElementById('grid-container');
+
+function resizeCanvases() {
+    const totalTicks = state.totalBars * TICKS_PER_BAR;
+    const gridWidth = totalTicks * CELL_W;
+    const gridHeight = TOTAL_NOTES * CELL_H;
+
+    gridCanvas.width = gridWidth;
+    gridCanvas.height = gridHeight;
+
+    pianoCanvas.width = PIANO_W;
+    pianoCanvas.height = gridHeight;
+
+    // Tempo canvas matches grid width
+    tempoCanvas.width = gridWidth;
+    tempoCanvas.height = 30;
+}
+
+// ===== DRAWING: PIANO KEYS =====
+// This draws the vertical piano keyboard on the left side.
+// White keys and black keys alternate just like a real piano!
+
+function drawPianoKeys() {
+    const h = pianoCanvas.height;
+    pianoCtx.clearRect(0, 0, PIANO_W, h);
+
+    for (let row = 0; row < TOTAL_NOTES; row++) {
+        const midi = rowToMidi(row);
+        const noteInOctave = midi % 12;
+        const y = row * CELL_H - state.scrollTop;
+        const isBlack = BLACK_KEYS.includes(noteInOctave);
+        const isC = noteInOctave === 0;  // C notes get labeled (C3, C4, C5)
+
+        // Background color
+        if (isBlack) {
+            pianoCtx.fillStyle = '#2a2a3e';
+        } else {
+            pianoCtx.fillStyle = '#3a3a52';
+        }
+        pianoCtx.fillRect(0, y, PIANO_W, CELL_H);
+
+        // Bottom border for each key
+        pianoCtx.strokeStyle = '#1a1a2e';
+        pianoCtx.lineWidth = 1;
+        pianoCtx.beginPath();
+        pianoCtx.moveTo(0, y + CELL_H - 0.5);
+        pianoCtx.lineTo(PIANO_W, y + CELL_H - 0.5);
+        pianoCtx.stroke();
+
+        // Highlight C notes with a brighter border (they mark octave boundaries)
+        if (isC) {
+            pianoCtx.strokeStyle = '#0f3460';
+            pianoCtx.lineWidth = 2;
+            pianoCtx.beginPath();
+            pianoCtx.moveTo(0, y + CELL_H - 1);
+            pianoCtx.lineTo(PIANO_W, y + CELL_H - 1);
+            pianoCtx.stroke();
+        }
+
+        // Note name text
+        const name = midiToName(midi);
+        pianoCtx.fillStyle = isC ? '#e0e0e0' : '#808090';
+        pianoCtx.font = isC ? 'bold 10px monospace' : '9px monospace';
+        pianoCtx.textAlign = 'right';
+        pianoCtx.textBaseline = 'middle';
+        pianoCtx.fillText(name, PIANO_W - 4, y + CELL_H / 2);
+    }
+}
+
+// ===== DRAWING: GRID =====
+// This draws the main note grid — the area where you place notes.
+// It has vertical lines for beats/bars and horizontal lines for each note row.
+
+function drawGrid() {
+    const totalTicks = state.totalBars * TICKS_PER_BAR;
+    const w = gridCanvas.width;
+    const h = gridCanvas.height;
+
+    gridCtx.clearRect(0, 0, w, h);
+
+    // --- Row backgrounds (alternating for readability) ---
+    for (let row = 0; row < TOTAL_NOTES; row++) {
+        const midi = rowToMidi(row);
+        const noteInOctave = midi % 12;
+        const y = row * CELL_H;
+        const isBlack = BLACK_KEYS.includes(noteInOctave);
+
+        gridCtx.fillStyle = isBlack ? '#14142a' : '#1a1a30';
+        gridCtx.fillRect(0, y, w, CELL_H);
+    }
+
+    // --- Vertical lines (beat and bar markers) ---
+    for (let tick = 0; tick <= totalTicks; tick++) {
+        const x = tick * CELL_W;
+        const isBar = tick % TICKS_PER_BAR === 0;        // Bar line (every 16 ticks)
+        const isBeat = tick % SUBDIVISIONS === 0;         // Beat line (every 4 ticks)
+
+        if (isBar) {
+            gridCtx.strokeStyle = '#0f3460';
+            gridCtx.lineWidth = 2;
+        } else if (isBeat) {
+            gridCtx.strokeStyle = '#1a2a4a';
+            gridCtx.lineWidth = 1;
+        } else {
+            gridCtx.strokeStyle = '#111125';
+            gridCtx.lineWidth = 0.5;
+        }
+
+        gridCtx.beginPath();
+        gridCtx.moveTo(x + 0.5, 0);
+        gridCtx.lineTo(x + 0.5, h);
+        gridCtx.stroke();
+    }
+
+    // --- Horizontal lines (note boundaries) ---
+    for (let row = 0; row <= TOTAL_NOTES; row++) {
+        const midi = rowToMidi(row);
+        const isC = midi % 12 === 0;
+        const y = row * CELL_H;
+
+        gridCtx.strokeStyle = isC ? '#0f3460' : '#1a1a2e';
+        gridCtx.lineWidth = isC ? 1.5 : 0.5;
+        gridCtx.beginPath();
+        gridCtx.moveTo(0, y + 0.5);
+        gridCtx.lineTo(w, y + 0.5);
+        gridCtx.stroke();
+    }
+
+    // --- Draw notes for ALL tracks (dimmed for non-selected tracks) ---
+    for (let t = 0; t < state.tracks.length; t++) {
+        const track = state.tracks[t];
+        const colors = TRACK_COLORS[t];
+        const isSelected = (t === state.currentTrack);
+
+        for (const note of track.notes) {
+            // note = [pitch, startTick, duration]
+            const row = midiToRow(note[0]);
+            const x = note[1] * CELL_W;
+            const y = row * CELL_H;
+            const w2 = note[2] * CELL_W;
+
+            // Selected track draws bright, other tracks draw dimmed
+            const fillColor = isSelected ? colors.note : colors.dim;
+            const borderColor = isSelected ? colors.bg : colors.dim;
+
+            // Note body (rounded rectangle)
+            gridCtx.fillStyle = fillColor;
+            roundRect(gridCtx, x + 1, y + 1, w2 - 2, CELL_H - 2, 2);
+            gridCtx.fill();
+
+            // Note border
+            gridCtx.strokeStyle = borderColor;
+            gridCtx.lineWidth = 1;
+            roundRect(gridCtx, x + 1, y + 1, w2 - 2, CELL_H - 2, 2);
+            gridCtx.stroke();
+
+            // Small highlight line at top (makes it look 3D)
+            if (isSelected && w2 > 6) {
+                gridCtx.strokeStyle = 'rgba(255,255,255,0.3)';
+                gridCtx.lineWidth = 1;
+                gridCtx.beginPath();
+                gridCtx.moveTo(x + 3, y + 2.5);
+                gridCtx.lineTo(x + w2 - 3, y + 2.5);
+                gridCtx.stroke();
+            }
+        }
+    }
+
+    // --- Playback cursor (vertical line showing current position) ---
+    if (state.playing) {
+        const x = state.playTickPosition * CELL_W;
+        gridCtx.strokeStyle = '#ffffff';
+        gridCtx.lineWidth = 2;
+        gridCtx.beginPath();
+        gridCtx.moveTo(x, 0);
+        gridCtx.lineTo(x, h);
+        gridCtx.stroke();
+
+        // Glow effect behind the cursor
+        gridCtx.strokeStyle = 'rgba(255,255,255,0.2)';
+        gridCtx.lineWidth = 6;
+        gridCtx.beginPath();
+        gridCtx.moveTo(x, 0);
+        gridCtx.lineTo(x, h);
+        gridCtx.stroke();
+    }
+}
+
+// Helper: draw a rounded rectangle path
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+}
+
+// ===== DRAWING: TEMPO LANE =====
+// This shows tempo (BPM) changes below the grid.
+// Each bar can have its own BPM — useful for speed-ups and slowdowns!
+
+function drawTempoLane() {
+    const totalTicks = state.totalBars * TICKS_PER_BAR;
+    const w = tempoCanvas.width;
+    const h = tempoCanvas.height;
+
+    tempoCtx.clearRect(0, 0, w, h);
+    tempoCtx.fillStyle = '#111128';
+    tempoCtx.fillRect(0, 0, w, h);
+
+    // Draw each bar
+    for (let bar = 0; bar < state.totalBars; bar++) {
+        const x = bar * TICKS_PER_BAR * CELL_W;
+        const barW = TICKS_PER_BAR * CELL_W;
+
+        // Bar divider
+        tempoCtx.strokeStyle = '#0f3460';
+        tempoCtx.lineWidth = 1;
+        tempoCtx.beginPath();
+        tempoCtx.moveTo(x + 0.5, 0);
+        tempoCtx.lineTo(x + 0.5, h);
+        tempoCtx.stroke();
+
+        // Find tempo for this bar
+        const bpm = getTempoAtBar(bar);
+
+        // Background if there's a tempo change on this bar
+        const hasChange = state.tempoChanges.some(tc => tc[0] === bar);
+        if (hasChange) {
+            tempoCtx.fillStyle = 'rgba(233, 69, 96, 0.15)';
+            tempoCtx.fillRect(x + 1, 1, barW - 2, h - 2);
+        }
+
+        // Tempo text
+        tempoCtx.fillStyle = hasChange ? '#e94560' : '#606080';
+        tempoCtx.font = '10px monospace';
+        tempoCtx.textAlign = 'center';
+        tempoCtx.textBaseline = 'middle';
+        tempoCtx.fillText(`${bpm}`, x + barW / 2, h / 2 - 4);
+
+        // Bar number
+        tempoCtx.fillStyle = '#404060';
+        tempoCtx.font = '8px monospace';
+        tempoCtx.fillText(`Bar ${bar + 1}`, x + barW / 2, h / 2 + 8);
+    }
+}
+
+// Get the BPM at a specific bar by looking through tempo changes
+function getTempoAtBar(bar) {
+    let bpm = state.bpm;
+    for (const [changeBar, changeBpm] of state.tempoChanges) {
+        if (changeBar <= bar) bpm = changeBpm;
+    }
+    return bpm;
+}
+
+// ===== FULL REDRAW =====
+function draw() {
+    drawPianoKeys();
+    drawGrid();
+    drawTempoLane();
+}
+
+// ===== MOUSE INTERACTION =====
+// This is where clicks on the grid become musical notes!
+
+// Convert a mouse click position to grid coordinates (which note row + which tick)
+function mouseToGrid(e) {
+    const rect = gridCanvas.getBoundingClientRect();
+    // We need to account for CSS scaling — the canvas might be displayed
+    // at a different size than its internal pixel resolution
+    const scaleX = gridCanvas.width / rect.width;
+    const scaleY = gridCanvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    const tick = Math.floor(x / CELL_W);
+    const row = Math.floor(y / CELL_H);
+    return { tick, row };
+}
+
+// Find if there's already a note at a specific position
+function findNoteAt(track, tick, row) {
+    const midi = rowToMidi(row);
+    for (let i = 0; i < track.notes.length; i++) {
+        const n = track.notes[i];
+        if (n[0] === midi && tick >= n[1] && tick < n[1] + n[2]) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Save current state for undo (before making changes)
+function pushUndo() {
+    // Deep copy all track notes
+    const snapshot = state.tracks.map(t => ({
+        ...t,
+        notes: t.notes.map(n => [...n])
+    }));
+    state.undoStack.push(snapshot);
+    if (state.undoStack.length > 100) state.undoStack.shift();  // Limit memory
+    state.redoStack = [];  // Clear redo when new action happens
+}
+
+// Grid: mouse down — place a note or start deleting
+gridCanvas.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const { tick, row } = mouseToGrid(e);
+    if (row < 0 || row >= TOTAL_NOTES || tick < 0) return;
+
+    const track = state.tracks[state.currentTrack];
+    const existingIdx = findNoteAt(track, tick, row);
+
+    if (e.button === 2) {
+        // RIGHT CLICK: Delete note
+        if (existingIdx !== -1) {
+            pushUndo();
+            track.notes.splice(existingIdx, 1);
+            draw();
+        }
+    } else if (e.button === 0) {
+        // LEFT CLICK: Toggle notes — click existing note to DELETE, click empty to PLACE
+        if (existingIdx !== -1) {
+            // Clicked on existing note — delete it (toggle off)
+            pushUndo();
+            track.notes.splice(existingIdx, 1);
+        } else {
+            // Empty cell — place a new note
+            pushUndo();
+            const midi = rowToMidi(row);
+            const newNote = [midi, tick, 1];  // [pitch, start, duration=1]
+            track.notes.push(newNote);
+            state.isDragging = true;
+            state.dragNote = newNote;
+
+            // Play a preview sound when placing a note
+            previewNote(midi, state.tracks[state.currentTrack].waveform, 0.15);
+        }
+        draw();
+    }
+});
+
+// Grid: mouse move — extend note while dragging
+gridCanvas.addEventListener('mousemove', (e) => {
+    if (!state.isDragging || !state.dragNote) return;
+
+    const { tick } = mouseToGrid(e);
+    const note = state.dragNote;
+    const newDuration = Math.max(1, tick - note[1] + 1);
+    // Only update if duration actually changed
+    if (note[2] !== newDuration) {
+        note[2] = newDuration;
+        draw();
+    }
+
+    // Update status bar
+    const bar = Math.floor(tick / TICKS_PER_BAR) + 1;
+    const beat = Math.floor((tick % TICKS_PER_BAR) / SUBDIVISIONS) + 1;
+    document.getElementById('status-right').textContent = `Bar ${bar} | Beat ${beat}`;
+});
+
+// Grid: mouse up — stop dragging
+gridCanvas.addEventListener('mouseup', () => {
+    state.isDragging = false;
+    state.dragNote = null;
+});
+
+// Prevent right-click context menu on the grid
+gridCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Track mouse position for status bar even when not dragging
+gridCanvas.addEventListener('mousemove', (e) => {
+    if (state.isDragging) return;  // Already handled above
+    const { tick, row } = mouseToGrid(e);
+    if (row >= 0 && row < TOTAL_NOTES && tick >= 0) {
+        const bar = Math.floor(tick / TICKS_PER_BAR) + 1;
+        const beat = Math.floor((tick % TICKS_PER_BAR) / SUBDIVISIONS) + 1;
+        const noteName = midiToName(rowToMidi(row));
+        document.getElementById('status-right').textContent =
+            `${noteName} | Bar ${bar} | Beat ${beat}`;
+    }
+});
+
+// Sync piano keys scroll with grid scroll
+gridContainer.addEventListener('scroll', () => {
+    state.scrollTop = gridContainer.scrollTop;
+    pianoCanvas.style.marginTop = -state.scrollTop + 'px';
+
+    // Sync tempo lane horizontal scroll
+    const tempoLane = document.getElementById('tempo-lane');
+    tempoLane.scrollLeft = gridContainer.scrollLeft;
+});
+
+// ===== TEMPO LANE INTERACTION =====
+// Double-click on a bar in the tempo lane to change its BPM
+
+tempoCanvas.addEventListener('dblclick', (e) => {
+    const rect = tempoCanvas.getBoundingClientRect();
+    const scaleX = tempoCanvas.width / rect.width;
+    const x = (e.clientX - rect.left) * scaleX;
+    const bar = Math.floor(x / (TICKS_PER_BAR * CELL_W));
+
+    if (bar < 0 || bar >= state.totalBars) return;
+
+    const currentBpm = getTempoAtBar(bar);
+    const newBpm = prompt(`Set BPM for bar ${bar + 1}:`, currentBpm);
+
+    if (newBpm !== null) {
+        const bpm = parseInt(newBpm);
+        if (bpm >= 40 && bpm <= 300) {
+            pushUndo();
+            // Remove existing tempo change for this bar
+            state.tempoChanges = state.tempoChanges.filter(tc => tc[0] !== bar);
+            // Add new one (or skip if same as previous bar's inherited BPM)
+            state.tempoChanges.push([bar, bpm]);
+            state.tempoChanges.sort((a, b) => a[0] - b[0]);
+            draw();
+        }
+    }
+});
+
+// ===== WEB AUDIO: PREVIEW SOUNDS =====
+// Web Audio API lets us generate sound waves mathematically!
+// Instead of loading audio files, we create sound from scratch.
+
+let audioCtx = null;
+
+function getAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+}
+
+// Play a quick preview sound when you place a note
+function previewNote(midi, waveform, duration) {
+    const ctx = getAudioContext();
+    // Convert MIDI number to frequency in Hertz
+    // This formula is standard: A4 (MIDI 69) = 440 Hz, each semitone is a 2^(1/12) ratio
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+
+    if (waveform === 'noise') {
+        // Noise is special — it's random values (used for drums/percussion)
+        const bufferSize = ctx.sampleRate * duration;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;  // Random between -1 and 1
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        source.connect(gain).connect(ctx.destination);
+        source.start();
+        source.stop(ctx.currentTime + duration);
+    } else {
+        // For normal waveforms, we use the built-in OscillatorNode
+        const osc = ctx.createOscillator();
+        osc.type = waveform;  // 'square', 'triangle', 'sawtooth', or 'sine'
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+        const gain = ctx.createGain();
+        // Quick fade-in and fade-out (called an "envelope") so it doesn't click
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+        osc.connect(gain).connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+    }
+}
+
+// ===== WEB AUDIO: FULL PLAYBACK =====
+// This plays the entire song from start to finish, handling all tracks simultaneously
+
+let playbackTimers = [];  // Keeps track of scheduled sounds so we can stop them
+
+function startPlayback() {
+    if (state.playing) return;
+    state.playing = true;
+    document.getElementById('btn-play').classList.add('active');
+
+    const ctx = getAudioContext();
+    const totalTicks = state.totalBars * TICKS_PER_BAR;
+
+    // Calculate the time for each tick, accounting for tempo changes
+    // This is an array where tickTimes[i] = the time in seconds when tick i plays
+    const tickTimes = [];
+    let currentTime = 0;
+
+    for (let tick = 0; tick < totalTicks; tick++) {
+        tickTimes.push(currentTime);
+        const bar = Math.floor(tick / TICKS_PER_BAR);
+        const bpm = getTempoAtBar(bar);
+        // Time per tick = 60 seconds / BPM / subdivisions
+        const tickDuration = 60 / bpm / SUBDIVISIONS;
+        currentTime += tickDuration;
+    }
+    const totalDuration = currentTime;
+
+    // Schedule all notes for all tracks
+    const startTime = ctx.currentTime + 0.05;  // Small delay to avoid glitches
+
+    for (const track of state.tracks) {
+        for (const note of track.notes) {
+            const [midi, startTick, duration] = note;
+            if (startTick >= totalTicks) continue;
+
+            const noteStartTime = startTime + tickTimes[startTick];
+            // Calculate end time by looking up where the last tick of this note falls
+            const endTick = Math.min(startTick + duration, totalTicks);
+            const noteEndTime = startTime + (endTick < totalTicks ?
+                tickTimes[endTick] : totalDuration);
+            const noteDuration = noteEndTime - noteStartTime;
+
+            scheduleNote(ctx, midi, track.waveform, track.volume,
+                noteStartTime, noteDuration);
+        }
+    }
+
+    // Animate the playback cursor
+    state.playStartTime = performance.now();
+    state.playTickPosition = 0;
+
+    // Store tick times for cursor animation
+    state.tickTimes = tickTimes;
+    state.playAudioStart = startTime;
+    state.totalPlayDuration = totalDuration;
+
+    requestAnimationFrame(animatePlayback);
+
+    // Auto-stop at end
+    const stopTimer = setTimeout(() => {
+        stopPlayback();
+    }, totalDuration * 1000 + 100);
+    playbackTimers.push({ type: 'timeout', id: stopTimer });
+}
+
+function scheduleNote(ctx, midi, waveform, volume, startTime, duration) {
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+
+    if (waveform === 'noise') {
+        const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * duration));
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(volume * 0.5, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        source.connect(gain).connect(ctx.destination);
+        source.start(startTime);
+        source.stop(startTime + duration);
+    } else {
+        const osc = ctx.createOscillator();
+        osc.type = waveform;
+        osc.frequency.setValueAtTime(freq, startTime);
+
+        const gain = ctx.createGain();
+        // ADSR-like envelope: quick attack, sustain, quick release
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(volume * 0.5, startTime + 0.01);
+        gain.gain.setValueAtTime(volume * 0.5, startTime + duration - 0.02);
+        gain.gain.linearRampToValueAtTime(0, startTime + duration);
+
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+    }
+}
+
+function animatePlayback() {
+    if (!state.playing) return;
+
+    const ctx = getAudioContext();
+    const elapsed = ctx.currentTime - state.playAudioStart;
+
+    // Find which tick we're at based on elapsed time
+    let currentTick = 0;
+    for (let i = 0; i < state.tickTimes.length; i++) {
+        if (state.tickTimes[i] <= elapsed) {
+            currentTick = i;
+        } else {
+            break;
+        }
+    }
+
+    // Interpolate between ticks for smooth cursor movement
+    if (currentTick < state.tickTimes.length - 1) {
+        const tickStart = state.tickTimes[currentTick];
+        const tickEnd = state.tickTimes[currentTick + 1];
+        const fraction = (elapsed - tickStart) / (tickEnd - tickStart);
+        state.playTickPosition = currentTick + Math.min(fraction, 1);
+    } else {
+        state.playTickPosition = currentTick;
+    }
+
+    draw();
+
+    // Auto-scroll to keep cursor visible
+    const cursorX = state.playTickPosition * CELL_W;
+    const containerWidth = gridContainer.clientWidth;
+    const scrollLeft = gridContainer.scrollLeft;
+    if (cursorX > scrollLeft + containerWidth - 50 || cursorX < scrollLeft) {
+        gridContainer.scrollLeft = cursorX - 100;
+    }
+
+    requestAnimationFrame(animatePlayback);
+}
+
+function stopPlayback() {
+    state.playing = false;
+    state.playTickPosition = 0;
+    document.getElementById('btn-play').classList.remove('active');
+
+    // Clear all scheduled timeouts
+    for (const timer of playbackTimers) {
+        if (timer.type === 'timeout') clearTimeout(timer.id);
+    }
+    playbackTimers = [];
+
+    // Stop all audio by closing and recreating the context
+    if (audioCtx) {
+        audioCtx.close();
+        audioCtx = null;
+    }
+
+    draw();
+}
+
+// ===== TOOLBAR EVENTS =====
+
+document.getElementById('btn-play').addEventListener('click', () => {
+    if (state.playing) stopPlayback();
+    else startPlayback();
+});
+
+document.getElementById('btn-stop').addEventListener('click', stopPlayback);
+
+document.getElementById('bpm-input').addEventListener('change', (e) => {
+    const bpm = parseInt(e.target.value);
+    if (bpm >= 40 && bpm <= 300) {
+        state.bpm = bpm;
+        // Update the first tempo change entry (bar 0)
+        if (state.tempoChanges.length > 0 && state.tempoChanges[0][0] === 0) {
+            state.tempoChanges[0][1] = bpm;
+        }
+        draw();
+    }
+});
+
+document.getElementById('bars-input').addEventListener('change', (e) => {
+    const bars = parseInt(e.target.value);
+    if (bars >= 1 && bars <= 64) {
+        state.totalBars = bars;
+        resizeCanvases();
+        draw();
+    }
+});
+
+// Track tab selection
+document.querySelectorAll('.track-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const trackIdx = parseInt(tab.dataset.track);
+        state.currentTrack = trackIdx;
+
+        // Update visual selection
+        document.querySelectorAll('.track-tab').forEach(t => t.classList.remove('selected'));
+        tab.classList.add('selected');
+
+        // Update waveform and volume controls to match selected track
+        const track = state.tracks[trackIdx];
+        document.getElementById('waveform-select').value = track.waveform;
+        document.getElementById('volume-slider').value = track.volume * 100;
+
+        draw();
+    });
+});
+
+document.getElementById('waveform-select').addEventListener('change', (e) => {
+    state.tracks[state.currentTrack].waveform = e.target.value;
+});
+
+document.getElementById('volume-slider').addEventListener('input', (e) => {
+    state.tracks[state.currentTrack].volume = parseInt(e.target.value) / 100;
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+    if (state.tracks[state.currentTrack].notes.length === 0) return;
+    if (!confirm(`Clear all notes from Track ${state.currentTrack + 1}?`)) return;
+    pushUndo();
+    state.tracks[state.currentTrack].notes = [];
+    draw();
+});
+
+// ===== EXPORT =====
+// This generates GDScript code that you paste into your Godot game!
+// The format is a Dictionary that music_player.gd can read.
+
+document.getElementById('btn-export').addEventListener('click', () => {
+    const songName = prompt('Song name (no spaces, use underscores):', 'dungeon_theme');
+    if (!songName) return;
+
+    let code = `# Auto-generated by PIXEL DUNGEON Music Sequencer
+# Paste this into a new file: music/${songName}.gd
+extends RefCounted
+
+const SONG_DATA: Dictionary = {
+    "name": "${songName}",
+    "bpm": ${state.bpm},
+    "beats_per_bar": ${BEATS_PER_BAR},
+    "subdivisions": ${SUBDIVISIONS},
+    "total_bars": ${state.totalBars},
+    "tracks": [\n`;
+
+    for (let t = 0; t < state.tracks.length; t++) {
+        const track = state.tracks[t];
+        // Only include tracks that have notes
+        if (track.notes.length === 0 && t > 0) continue;
+
+        code += `        {
+            "name": "${track.name}",
+            "waveform": "${track.waveform}",
+            "volume": ${track.volume},
+            "notes": [`;
+
+        // Sort notes by start time for readability
+        const sortedNotes = [...track.notes].sort((a, b) => a[1] - b[1]);
+        for (let i = 0; i < sortedNotes.length; i++) {
+            const n = sortedNotes[i];
+            code += `[${n[0]}, ${n[1]}, ${n[2]}]`;
+            if (i < sortedNotes.length - 1) code += ', ';
+        }
+
+        code += `]\n        },\n`;
+    }
+
+    code += `    ],
+    "tempo_changes": [`;
+
+    for (let i = 0; i < state.tempoChanges.length; i++) {
+        const tc = state.tempoChanges[i];
+        code += `[${tc[0]}, ${tc[1]}]`;
+        if (i < state.tempoChanges.length - 1) code += ', ';
+    }
+
+    code += `]\n}\n`;
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(code).then(() => {
+        showToast('GDScript copied to clipboard!');
+    }).catch(() => {
+        // Fallback: show in a text area
+        const ta = document.createElement('textarea');
+        ta.value = code;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('GDScript copied to clipboard!');
+    });
+});
+
+// ===== SAVE / LOAD (localStorage) =====
+// localStorage is like a mini database built into your browser.
+// Data saved here persists even after you close the tab!
+
+document.getElementById('btn-save').addEventListener('click', () => {
+    const name = prompt('Save name:', 'my_song');
+    if (!name) return;
+
+    const saveData = {
+        bpm: state.bpm,
+        totalBars: state.totalBars,
+        tracks: state.tracks.map(t => ({
+            name: t.name,
+            waveform: t.waveform,
+            volume: t.volume,
+            notes: t.notes.map(n => [...n])
+        })),
+        tempoChanges: state.tempoChanges.map(tc => [...tc])
+    };
+
+    // Get list of existing saves
+    const saves = JSON.parse(localStorage.getItem('pixelDungeonSaves') || '{}');
+    saves[name] = saveData;
+    localStorage.setItem('pixelDungeonSaves', JSON.stringify(saves));
+
+    showToast(`Saved "${name}"!`);
+});
+
+document.getElementById('btn-load').addEventListener('click', () => {
+    const saves = JSON.parse(localStorage.getItem('pixelDungeonSaves') || '{}');
+    const names = Object.keys(saves);
+
+    if (names.length === 0) {
+        showToast('No saved songs found!');
+        return;
+    }
+
+    const name = prompt(`Available saves:\n${names.join('\n')}\n\nEnter save name to load:`);
+    if (!name || !saves[name]) {
+        if (name) showToast('Save not found!');
+        return;
+    }
+
+    pushUndo();
+    const data = saves[name];
+    state.bpm = data.bpm;
+    state.totalBars = data.totalBars;
+    state.tempoChanges = data.tempoChanges || [[0, data.bpm]];
+
+    for (let t = 0; t < state.tracks.length; t++) {
+        if (data.tracks[t]) {
+            state.tracks[t].name = data.tracks[t].name;
+            state.tracks[t].waveform = data.tracks[t].waveform;
+            state.tracks[t].volume = data.tracks[t].volume;
+            state.tracks[t].notes = data.tracks[t].notes.map(n => [...n]);
+        } else {
+            state.tracks[t].notes = [];
+        }
+    }
+
+    // Update UI controls
+    document.getElementById('bpm-input').value = state.bpm;
+    document.getElementById('bars-input').value = state.totalBars;
+    const track = state.tracks[state.currentTrack];
+    document.getElementById('waveform-select').value = track.waveform;
+    document.getElementById('volume-slider').value = track.volume * 100;
+
+    resizeCanvases();
+    draw();
+    showToast(`Loaded "${name}"!`);
+});
+
+// ===== UNDO / REDO =====
+// Ctrl+Z to undo, Ctrl+Y or Ctrl+Shift+Z to redo
+// These work by saving snapshots of all notes before each change
+
+function undo() {
+    if (state.undoStack.length === 0) return;
+    // Save current state to redo stack
+    const currentSnapshot = state.tracks.map(t => ({
+        ...t,
+        notes: t.notes.map(n => [...n])
+    }));
+    state.redoStack.push(currentSnapshot);
+
+    // Restore previous state
+    const snapshot = state.undoStack.pop();
+    for (let t = 0; t < state.tracks.length; t++) {
+        state.tracks[t] = snapshot[t];
+    }
+    draw();
+}
+
+function redo() {
+    if (state.redoStack.length === 0) return;
+    // Save current state to undo stack
+    const currentSnapshot = state.tracks.map(t => ({
+        ...t,
+        notes: t.notes.map(n => [...n])
+    }));
+    state.undoStack.push(currentSnapshot);
+
+    // Restore redo state
+    const snapshot = state.redoStack.pop();
+    for (let t = 0; t < state.tracks.length; t++) {
+        state.tracks[t] = snapshot[t];
+    }
+    draw();
+}
+
+// ===== KEYBOARD SHORTCUTS =====
+document.addEventListener('keydown', (e) => {
+    // Don't trigger shortcuts when typing in input fields
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    if (e.code === 'Space') {
+        e.preventDefault();
+        if (state.playing) stopPlayback();
+        else startPlayback();
+    }
+
+    if (e.ctrlKey && e.code === 'KeyZ') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+    }
+
+    if (e.ctrlKey && e.code === 'KeyY') {
+        e.preventDefault();
+        redo();
+    }
+
+    // Number keys 1-4 switch tracks
+    if (e.code >= 'Digit1' && e.code <= 'Digit4' && !e.ctrlKey) {
+        const trackIdx = parseInt(e.code.charAt(5)) - 1;
+        state.currentTrack = trackIdx;
+        document.querySelectorAll('.track-tab').forEach(t => t.classList.remove('selected'));
+        document.querySelector(`[data-track="${trackIdx}"]`).classList.add('selected');
+        const track = state.tracks[trackIdx];
+        document.getElementById('waveform-select').value = track.waveform;
+        document.getElementById('volume-slider').value = track.volume * 100;
+        draw();
+    }
+});
+
+// ===== TOAST NOTIFICATION =====
+function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// ===== WINDOW RESIZE =====
+window.addEventListener('resize', () => {
+    resizeCanvases();
+    draw();
+});
+
+// ===== INITIALIZE =====
+resizeCanvases();
+draw();
+
+// Show help on first visit
+if (!localStorage.getItem('pixelDungeonSeenHelp')) {
+    showToast('Click to place/remove notes | Drag to extend | Space to play');
+    localStorage.setItem('pixelDungeonSeenHelp', 'true');
+}
+</script>
+</body>
+</html>

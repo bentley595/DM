@@ -10,11 +10,15 @@ var prompt_visible: bool = true
 # Without this, mashing keys could trigger the transition multiple times!
 var transitioning: bool = false
 
+# Preload the title screen music data
+var TitleSong = preload("res://music/title_screen.gd")
+
 
 func _ready() -> void:
-	# When the scene first loads, nothing special to set up yet.
-	# Later, this is where you'd start music or animations!
-	pass
+	# Start the title screen music!
+	var song_resource = TitleSong.new()
+	$MusicPlayer.load_song(song_resource.SONG_DATA)
+	$MusicPlayer.play_song()
 
 
 func _process(delta: float) -> void:
@@ -40,6 +44,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_pressed() and not transitioning:
 		# Set the guard so rapid key presses don't trigger this again.
 		transitioning = true
+		# Stop the music before leaving
+		$MusicPlayer.stop_song()
 		# Switch to the file select screen!
 		# change_scene_to_file() unloads the current scene and loads the new one.
 		get_tree().change_scene_to_file("res://scenes/file_select.tscn")
