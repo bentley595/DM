@@ -38,7 +38,7 @@ var player: AudioStreamPlayer
 
 ## Looping and volume
 var loop: bool = true
-var master_volume: float = 0.7
+var master_volume: float = 0.4
 
 
 func _ready() -> void:
