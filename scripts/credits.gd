@@ -10,6 +10,8 @@ extends Control
 ## Godot's background loader uses a separate thread (think of it like a second
 ## worker running in parallel) so loading doesn't freeze the animation.
 
+var CreditsSong = preload("res://music/credits_theme.gd")
+
 const FRAME_RATE: float = 3.0
 const FRAME_COUNT: int = 4
 const NEXT_SCENE: String = "res://scenes/title_screen.tscn"
@@ -23,9 +25,19 @@ var _load_done: bool = false  # Has the next scene finished loading?
 
 
 func _ready() -> void:
+	# Start the credits music
+	var song = CreditsSong.new()
+	$MusicPlayer.load_song(song.SONG_DATA)
+	$MusicPlayer.play_song()
+
 	# Kick off background loading of the title screen RIGHT AWAY.
 	# This runs on a separate thread so the animation plays smoothly.
 	ResourceLoader.load_threaded_request(NEXT_SCENE)
+
+	# Also preload the game scene in the background while the credits play.
+	# By the time the player picks a character and enters their name, the
+	# heavy scene is already in memory — so the transition feels instant.
+	ResourceLoader.load_threaded_request("res://scenes/game.tscn")
 
 	# Load all 4 logo frames
 	for i in range(FRAME_COUNT):
@@ -39,7 +51,7 @@ func _ready() -> void:
 	# Set up the fade in → hold → fade out sequence
 	_tween = create_tween()
 	_tween.tween_property($LogoRect, "modulate:a", 1.0, 1.0).from(0.0)
-	_tween.tween_interval(2.0)
+	_tween.tween_interval(6.0)
 	_tween.tween_property($LogoRect, "modulate:a", 0.0, 1.0)
 	_tween.tween_callback(_on_anim_done)
 
@@ -61,6 +73,23 @@ func _process(delta: float) -> void:
 			_try_switch()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("playtest"):
+		return
+	# Skip straight to the game scene with the test character (Knight + "Test")
+	get_tree().set_meta("selected_character_index", 0)
+	get_tree().set_meta("player_name", "Test")
+	get_tree().set_meta("is_playtest", true)
+	$MusicPlayer.stop_song()
+	# game.tscn is already being background-loaded — use it if ready, else load normally
+	var status = ResourceLoader.load_threaded_get_status("res://scenes/game.tscn")
+	if status == ResourceLoader.THREAD_LOAD_LOADED:
+		var scene = ResourceLoader.load_threaded_get("res://scenes/game.tscn")
+		get_tree().change_scene_to_packed(scene)
+	else:
+		get_tree().change_scene_to_file("res://scenes/game.tscn")
+
+
 func _on_anim_done() -> void:
 	_anim_done = true
 	_try_switch()
@@ -70,19 +99,8 @@ func _try_switch() -> void:
 	# Only switch when BOTH conditions are met
 	if not (_anim_done and _load_done):
 		return
+	$MusicPlayer.stop_song()
 	var scene = ResourceLoader.load_threaded_get(NEXT_SCENE)
 	get_tree().change_scene_to_packed(scene)
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_pressed():
-		if _tween:
-			_tween.kill()
-		# Check if loading finished — if so use the pre-loaded scene,
-		# otherwise do a normal load (skipping is rare and instant anyway)
-		var status = ResourceLoader.load_threaded_get_status(NEXT_SCENE)
-		if status == ResourceLoader.THREAD_LOAD_LOADED:
-			var scene = ResourceLoader.load_threaded_get(NEXT_SCENE)
-			get_tree().change_scene_to_packed(scene)
-		else:
-			get_tree().change_scene_to_file(NEXT_SCENE)

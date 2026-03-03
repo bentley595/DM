@@ -22,6 +22,7 @@ extends CanvasLayer
 
 @onready var health_bar: Node2D = $HealthBar
 @onready var momentum_bar: Node2D = $MomentumBar
+@onready var soul_bar: Node2D = $SoulBar
 @onready var roll_cooldown: Node2D = $RollCooldown
 @onready var ammo_display: Node2D = $AmmoDisplay
 
@@ -32,6 +33,7 @@ func _ready() -> void:
 	## these will be replaced with real values.
 	health_bar.set_value(100.0, 100.0)
 	momentum_bar.set_value(0.0, 100.0)
+	soul_bar.set_value(0.0, 100.0)
 	roll_cooldown.set_cooldown(1.0)
 	ammo_display.set_ammo(12, 12)
 
@@ -48,8 +50,20 @@ func update_momentum(current: float, max_val: float) -> void:
 	momentum_bar.set_value(current, max_val)
 
 
+func update_soul(current: float, max_val: float) -> void:
+	soul_bar.set_value(current, max_val)
+
+
+func update_momentum_color(fill: Color, outline: Color) -> void:
+	momentum_bar.set_colors(fill, outline)
+
+
+func set_momentum_rainbow(enabled: bool) -> void:
+	momentum_bar.set_rainbow(enabled)
+
+
 func update_roll_cooldown(percent: float) -> void:
-	roll_cooldown.set_cooldown(percent)
+	roll_cooldown.set_value(percent, 1.0)
 
 
 func update_ammo(current: int, max_val: int) -> void:
@@ -58,3 +72,5 @@ func update_ammo(current: int, max_val: int) -> void:
 
 func update_reload_progress(refilled: int, max_val: int) -> void:
 	ammo_display.set_reload_progress(refilled, max_val)
+
+

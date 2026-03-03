@@ -1,16 +1,8 @@
 extends Node2D
-## Displays the current ammo count with a small diamond icon.
-##
-## Instead of using a font, the numbers are drawn as PIXEL ART — tiny
-## 3×5 bitmap digits rendered with draw_rect(), exactly like the health
-## bar, roll arrow, and diamond icon.  This guarantees crisp rendering
-## because it's just colored rectangles — no font antialiasing issues!
-##
-## Key concept: **bitmap font**.
-## A bitmap font stores each character as a grid of pixels (0 or 1).
-## To draw the number "12", we look up the grid for "1", draw it pixel
-## by pixel, then move over and draw the grid for "2".  Old games used
-## this technique for ALL their text before vector fonts existed!
+## Displays the current ammo as a bar with a small diamond icon.
+## Gold when ammo is available, grey during reload.
+## The bar drains left-to-right as you shoot, and refills right-to-left
+## during reload so it looks visually distinct from normal depletion.
 
 # ── 3x3 diamond icon ────────────────────────────────────────────
 
@@ -20,124 +12,64 @@ const ICON_DIAMOND: Array = [
 	[0, 1, 0],
 ]
 
-# ── 3×5 pixel digits ────────────────────────────────────────────
-# Each digit is a 5-row × 3-column grid.  1 = draw pixel, 0 = skip.
-# At our 4× viewport scale, each pixel becomes 4×4 screen pixels,
-# making these 12×20 screen pixels per digit — small but readable!
+# ── Bar dimensions ───────────────────────────────────────────────
+# Matches the layout of every other HUD bar: icon (3px) + gap (2px) + bar.
 
-const DIGITS: Array = [
-	# 0
-	[[1,1,1],
-	 [1,0,1],
-	 [1,0,1],
-	 [1,0,1],
-	 [1,1,1]],
-	# 1
-	[[0,1,0],
-	 [1,1,0],
-	 [0,1,0],
-	 [0,1,0],
-	 [1,1,1]],
-	# 2
-	[[1,1,1],
-	 [0,0,1],
-	 [1,1,1],
-	 [1,0,0],
-	 [1,1,1]],
-	# 3
-	[[1,1,1],
-	 [0,0,1],
-	 [0,1,1],
-	 [0,0,1],
-	 [1,1,1]],
-	# 4
-	[[1,0,1],
-	 [1,0,1],
-	 [1,1,1],
-	 [0,0,1],
-	 [0,0,1]],
-	# 5
-	[[1,1,1],
-	 [1,0,0],
-	 [1,1,1],
-	 [0,0,1],
-	 [1,1,1]],
-	# 6
-	[[1,1,1],
-	 [1,0,0],
-	 [1,1,1],
-	 [1,0,1],
-	 [1,1,1]],
-	# 7
-	[[1,1,1],
-	 [0,0,1],
-	 [0,1,0],
-	 [0,1,0],
-	 [0,1,0]],
-	# 8
-	[[1,1,1],
-	 [1,0,1],
-	 [1,1,1],
-	 [1,0,1],
-	 [1,1,1]],
-	# 9
-	[[1,1,1],
-	 [1,0,1],
-	 [1,1,1],
-	 [0,0,1],
-	 [1,1,1]],
-]
+## X position where the bar starts — right after the icon and gap.
+const BAR_X: float = 5.0
 
-## Width of each digit in pixels.
-const DIGIT_W: int = 3
+## Width of the bar in pixels (same as health/momentum/soul bars).
+const BAR_WIDTH: int = 40
 
-## Height of each digit in pixels.
-const DIGIT_H: int = 5
+## Height of the bar in pixels (same as other bars).
+const BAR_HEIGHT: int = 4
 
-## Gap between digits (in pixels).
-const DIGIT_GAP: int = 1
+## Background color for the empty part of the bar.
+const COLOR_BAR_BG: Color = Color(0.15, 0.15, 0.15)
 
 # ── Colors ───────────────────────────────────────────────────────
 
-## Normal gold color — used when ammo is available.
+## Gold — used when ammo is available.
 const COLOR_NORMAL: Color = Color(0.9, 0.75, 0.3)
 
-## Grey color — used during reload to show you're waiting.
+## Dark gold — outline color.
+const COLOR_OUTLINE: Color = Color(0.35, 0.28, 0.1)
+
+## Grey — used during reload to show you can't shoot yet.
 const COLOR_RELOADING: Color = Color(0.45, 0.45, 0.45)
 
+## Dark grey — outline during reload.
+const COLOR_OUTLINE_RELOAD: Color = Color(0.18, 0.18, 0.18)
+
 var icon_color: Color = COLOR_NORMAL
-var text_color: Color = COLOR_NORMAL
+var outline_color: Color = COLOR_OUTLINE
 
 # ── State ────────────────────────────────────────────────────────
 
 var current_ammo: int = 12
 var max_ammo: int = 12
 
-## True while reloading — makes everything grey.
+## True while reloading — turns the bar grey and reverses fill direction.
 var is_reloading: bool = false
 
 
 func set_ammo(current: int, max_val: int) -> void:
-	## Update the displayed ammo count (normal mode — gold color).
+	## Update the bar (normal mode — gold color, left-anchored fill).
 	current_ammo = current
 	max_ammo = max_val
 	is_reloading = false
 	icon_color = COLOR_NORMAL
-	text_color = COLOR_NORMAL
+	outline_color = COLOR_OUTLINE
 	queue_redraw()
 
 
 func set_reload_progress(refilled: int, max_val: int) -> void:
-	## Update the display during reload — shows how many rounds have
-	## been refilled so far, drawn in grey to show you can't shoot yet.
-	##
-	## The number counts up from 0 → max as the reload progresses,
-	## giving you a clear visual of how much longer you need to wait.
+	## Update during reload — grey bar fills from the right as rounds refill.
 	current_ammo = refilled
 	max_ammo = max_val
 	is_reloading = true
 	icon_color = COLOR_RELOADING
-	text_color = COLOR_RELOADING
+	outline_color = COLOR_OUTLINE_RELOAD
 	queue_redraw()
 
 
@@ -148,28 +80,18 @@ func _draw() -> void:
 			if ICON_DIAMOND[row][col] == 1:
 				draw_rect(Rect2(col, row, 1, 1), icon_color)
 
-	# ── Draw ammo number as pixel-art digits ────────────────────
-	# Convert the number to a string so we can draw each digit.
-	# For example, 12 → "12" → draw digit 1, then digit 2.
-	var text: String = str(current_ammo)
-	var x_cursor: int = 5  # Start 5px right of icon (3px icon + 2px gap)
-	var y_start: int = -1  # Vertically center digits with diamond icon
-
-	for i in text.length():
-		# Get the digit value (0-9) from the character.
-		# "0".unicode_at(0) is 48, so subtracting it converts '0'→0, '1'→1, etc.
-		var digit: int = text.unicode_at(i) - "0".unicode_at(0)
-
-		# Safety check — skip anything that's not 0-9
-		if digit < 0 or digit > 9:
-			continue
-
-		# Draw this digit's 3×5 grid
-		var grid: Array = DIGITS[digit]
-		for row in DIGIT_H:
-			for col in DIGIT_W:
-				if grid[row][col] == 1:
-					draw_rect(Rect2(x_cursor + col, y_start + row, 1, 1), text_color)
-
-		# Move cursor right for the next digit
-		x_cursor += DIGIT_W + DIGIT_GAP
+	# ── Draw the bar (same 3-layer technique as hud_bar.gd) ──────
+	# Layer 1: outline (1px border on all sides)
+	draw_rect(Rect2(BAR_X - 1, -1, BAR_WIDTH + 2, BAR_HEIGHT + 2), outline_color)
+	# Layer 2: dark background
+	draw_rect(Rect2(BAR_X, 0, BAR_WIDTH, BAR_HEIGHT), COLOR_BAR_BG)
+	# Layer 3: fill
+	if max_ammo > 0:
+		var ratio: float = clampf(float(current_ammo) / float(max_ammo), 0.0, 1.0)
+		var fill_w: float = BAR_WIDTH * ratio
+		if fill_w > 0.0:
+			# Normal: fill anchored to left edge, shrinks right as ammo depletes.
+			# Reload: fill anchored to right edge, grows left as rounds refill.
+			var fill_x: float = BAR_X if not is_reloading \
+								else BAR_X + BAR_WIDTH - fill_w
+			draw_rect(Rect2(fill_x, 0, fill_w, BAR_HEIGHT), icon_color)

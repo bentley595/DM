@@ -21,6 +21,8 @@ extends Node2D
 
 # ── Shared data ───────────────────────────────────────────────────────
 const CharData = preload("res://scripts/character_data.gd")
+const WeaponData = preload("res://scripts/weapon_data.gd")
+const ArmorData  = preload("res://scripts/armor_data.gd")
 
 ## Preload the projectile script so we can create new projectile nodes at runtime.
 ## Key concept: **preload vs load**.
@@ -55,6 +57,13 @@ const ROLL_SPEED: float = 200.0
 ## At 200 px/s for 0.25s, you travel ~50 pixels — a quick burst!
 const ROLL_DURATION: float = 0.25
 
+## Momentum bonuses applied to the roll.
+## Speed: +2 px/s per stack  → at 50 stacks: 300 px/s
+## Duration: +0.002s per stack → at 50 stacks: 0.35s
+## Combined distance at max: 300 × 0.35 = 105px vs 50px baseline (+110%)
+const ROLL_SPEED_PER_MOMENTUM: float    = 2.0
+const ROLL_DURATION_PER_MOMENTUM: float = 0.002
+
 ## Time in seconds before you can roll again.
 const ROLL_COOLDOWN: float = 1.8
 
@@ -70,6 +79,44 @@ const SWING_DURATION: float = 0.28
 ## Time in seconds before you can swing again.
 ## Short cooldown keeps combat fast-paced.
 const SWING_COOLDOWN: float = 0.38
+
+# ── Momentum settings ───────────────────────────────────────────────
+# Momentum stacks up as you land hits.  It makes you faster and hits
+# harder, but resets to 0 the moment an enemy hits you back.
+# Think of it like a risk-reward system: play aggressively to get faster,
+# but getting punished wipes your streak!
+
+## Maximum number of momentum stacks.
+const MAX_MOMENTUM: int = 50
+
+## Speed boost per momentum stack in pixels/second.
+## At max (50 stacks): +100 px/s on top of the base 75 = 175 px/s.
+const MOMENTUM_SPEED_BONUS: float = 2.0
+
+## Attack speed bonus per stack — reduces both swing and shoot cooldowns.
+## 0.5% per stack means at 50 stacks you attack 25% faster.
+const MOMENTUM_ATTACK_SPEED_BONUS: float = 0.005
+
+## Current momentum stacks.  Gained on hit, lost on taking damage.
+var momentum: int = 0
+
+## True while the 25-stack ammo bonus is active (max ammo doubled to 24).
+var _ammo_doubled: bool = false
+
+# ── Soul settings ────────────────────────────────────────────────────
+# Soul is a separate resource gained by landing hits.  It will be used
+# to cast spells (to be added later).  Unlike momentum, soul is NOT
+# reset when the player takes damage — it's a longer-term resource.
+
+## Maximum soul the player can hold.
+const MAX_SOUL: float = 100.0
+
+## How much soul each landed hit gives.
+## At 5 per hit, a full bar takes 20 hits.
+const SOUL_PER_HIT: float = 5.0
+
+## Current soul amount.
+var soul: float = 0.0
 
 # ── Shoot settings ──────────────────────────────────────────────────
 # Right-click fires a projectile toward the mouse cursor.  Unlike the
@@ -100,6 +147,9 @@ var roll_timer: float = 0.0
 
 ## The direction the roll is moving (normalized Vector2).
 var roll_direction: Vector2 = Vector2.ZERO
+
+## The speed captured when the roll started (includes momentum bonus).
+var roll_speed: float = ROLL_SPEED
 
 ## Counts down from ROLL_COOLDOWN to 0 after a roll.
 ## When this reaches 0, the player can roll again.
@@ -145,6 +195,14 @@ var char_template: String = "armored"
 ## The 3 colors passed to each projectile: [outline, accent, highlight].
 var projectile_colors: Array = []
 
+## The player's weapon inventory.
+## "melee"  = ID of equipped melee weapon  (e.g. "sword")
+## "ranged" = ID of equipped ranged weapon (e.g. "crossbow")
+## "bag"    = list of weapon IDs not currently equipped
+## Each equipped slot holds a Dictionary {"id": "sword", "level": 1}, or {} when empty.
+## Bag items are the same format — this lets two Level-1 and Level-3 swords coexist!
+var inventory: Dictionary = {"bag": [], "melee": {}, "ranged": {}, "armor": {}}
+
 # ── Playtest state ───────────────────────────────────────────────
 # In playtest mode (P key shortcut), holding right click cycles
 # through projectile templates instead of shooting.  A quick tap
@@ -172,12 +230,14 @@ const HOLD_CYCLE_TIME: float = 0.3
 # ── Node references ───────────────────────────────────────────────────
 
 @onready var sprite: Node2D = $CharacterSprite
-@onready var name_label: Label = $NameLabel
+@onready var name_label: Node2D = $NameLabel
 @onready var swing_effect: Node2D = $SwingEffect
+@onready var momentum_burst: Node2D = $MomentumBurst
 
 ## The HUD is a sibling node (both Player and HUD are children of Game).
 ## get_parent() gives us the Game node, then we find the HUD from there.
 @onready var hud: CanvasLayer = get_parent().get_node("HUD")
+@onready var _inv_screen = get_parent().get_node("InventoryScreen")
 
 
 func _ready() -> void:
@@ -192,6 +252,10 @@ func _ready() -> void:
 	var player_name: String = get_tree().get_meta("player_name", "Test")
 	is_playtest = get_tree().get_meta("is_playtest", false)
 	setup(char_index, player_name)
+
+	# Listen for weapon changes from the inventory screen
+	_inv_screen.weapon_equipped.connect(_on_weapon_equipped)
+	_inv_screen.weapon_unequipped.connect(_on_weapon_unequipped)
 
 
 func setup(character_index: int, player_name: String) -> void:
@@ -226,11 +290,31 @@ func setup(character_index: int, player_name: String) -> void:
 	var palette: Array = character["palette"]
 	projectile_colors = [palette[1], palette[7], palette[3]]
 
-	# Set the HUD to show real ammo values instead of placeholders
-	hud.update_ammo(ammo, MAX_AMMO)
+	# Assign starting weapons and armor based on the character's body template.
+	# Every character starts at Level 1.  Higher-level gear can drop from dungeon loot later!
+	inventory.melee  = {"id": WeaponData.default_melee(char_template),  "level": 1}
+	inventory.ranged = {"id": WeaponData.default_ranged(char_template), "level": 1}
+	inventory.armor  = {"id": ArmorData.default_armor(char_template),   "level": 1}
+
+	# Set the HUD to show real values instead of placeholders
+	hud.update_ammo(ammo, _current_max_ammo())
+	hud.update_soul(soul, MAX_SOUL)
+	_update_momentum_hud()
 
 
 func _process(delta: float) -> void:
+	# ── Inventory toggle ─────────────────────────────────────────
+	# Press I to open the inventory.  We check this FIRST, before
+	# anything else, so it always works regardless of other state.
+	if Input.is_action_just_pressed("inventory"):
+		_inv_screen.open(inventory)
+		return
+
+	# While the inventory is open, skip ALL movement and combat input.
+	# This prevents the player from accidentally shooting while dragging weapons!
+	if _inv_screen.is_open:
+		return
+
 	# ── Update roll cooldown ─────────────────────────────────────
 	# This runs every frame, even when we're not rolling.
 	# It counts down the timer and updates the HUD arrow indicator.
@@ -274,12 +358,12 @@ func _process(delta: float) -> void:
 		reload_timer -= delta
 		if reload_timer <= 0:
 			is_reloading = false
-			ammo = MAX_AMMO
-			hud.update_ammo(ammo, MAX_AMMO)
+			ammo = _current_max_ammo()
+			hud.update_ammo(ammo, _current_max_ammo())
 		else:
 			var progress: float = 1.0 - (reload_timer / RELOAD_TIME)
-			var refilled: int = floori(progress * MAX_AMMO)
-			hud.update_reload_progress(refilled, MAX_AMMO)
+			var refilled: int = floori(progress * _current_max_ammo())
+			hud.update_reload_progress(refilled, _current_max_ammo())
 
 	# ── Handle active roll ───────────────────────────────────────
 	# While rolling, the player zooms in roll_direction at ROLL_SPEED.
@@ -292,7 +376,7 @@ func _process(delta: float) -> void:
 	# roll while this one is active.
 	if is_rolling:
 		roll_timer -= delta
-		position += roll_direction * ROLL_SPEED * delta
+		position += roll_direction * roll_speed * delta
 		position.x = clampf(position.x, BOUND_LEFT, BOUND_RIGHT)
 		position.y = clampf(position.y, BOUND_TOP, BOUND_BOTTOM)
 		if roll_timer <= 0:
@@ -393,7 +477,7 @@ func _process(delta: float) -> void:
 	#   direction  = WHICH WAY to move (length 1.0 after normalizing)
 	#   move_speed = HOW FAST in pixels per second
 	#   delta      = seconds since last frame (makes it smooth on any PC)
-	position += direction * move_speed * delta
+	position += direction * (move_speed + momentum * MOMENTUM_SPEED_BONUS) * delta
 
 	# ── Stay inside the screen ───────────────────────────────────
 	position.x = clampf(position.x, BOUND_LEFT, BOUND_RIGHT)
@@ -434,7 +518,8 @@ func _start_roll(move_direction: Vector2) -> void:
 	## direction.  If standing still, it goes in the facing direction.
 	## This feels natural — you roll WHERE you're heading.
 	is_rolling = true
-	roll_timer = ROLL_DURATION
+	roll_speed  = ROLL_SPEED    + momentum * ROLL_SPEED_PER_MOMENTUM
+	roll_timer  = ROLL_DURATION + momentum * ROLL_DURATION_PER_MOMENTUM
 	roll_cooldown_timer = ROLL_COOLDOWN
 
 	# Cancel any active swing — rolling always takes priority!
@@ -466,7 +551,7 @@ func _start_swing(direction: String) -> void:
 	## The direction parameter is one of: "up", "down", "left", "right".
 	is_swinging = true
 	swing_timer = SWING_DURATION
-	swing_cooldown_timer = SWING_COOLDOWN
+	swing_cooldown_timer = maxf(SWING_COOLDOWN * (1.0 - momentum * MOMENTUM_ATTACK_SPEED_BONUS), 0.1)
 
 	# Pause walk animation during the swing — the character holds
 	# their attack pose.  Movement still works (handled in _process),
@@ -548,6 +633,7 @@ func _check_swing_hits(direction: String) -> void:
 
 		if in_arc:
 			target.hit()
+			_on_hit_landed()
 
 
 func _cycle_projectile_template() -> void:
@@ -609,17 +695,114 @@ func _shoot() -> void:
 
 	# Configure it AFTER adding to the tree (some operations need
 	# the node to be "inside" the scene tree to work properly).
-	projectile.setup(dir, char_template, projectile_colors)
+	# Use the equipped ranged weapon's template so equipping a wand
+	# fires magic orbs even if you're playing an armored character!
+	var shoot_template: String = char_template
+	var ranged_id: String = inventory.get("ranged", {}).get("id", "")
+	if ranged_id != "" and WeaponData.WEAPONS.has(ranged_id):
+		shoot_template = WeaponData.WEAPONS[ranged_id]["template"]
+	projectile.setup(dir, shoot_template, projectile_colors)
+	projectile.hit_landed.connect(_on_hit_landed)
 
 	# Use up 1 ammo and start the cooldown
 	ammo -= 1
-	shoot_cooldown_timer = SHOOT_COOLDOWN
-	hud.update_ammo(ammo, MAX_AMMO)
+	shoot_cooldown_timer = maxf(SHOOT_COOLDOWN * (1.0 - momentum * MOMENTUM_ATTACK_SPEED_BONUS), 0.1)
+	hud.update_ammo(ammo, _current_max_ammo())
 
 	# If we just used the last shot, start reloading!
 	if ammo <= 0:
 		is_reloading = true
 		reload_timer = RELOAD_TIME
+
+
+func _on_weapon_equipped(slot: String, item: Dictionary) -> void:
+	## Called when the player drags a weapon or armor into an equipment slot.
+	inventory[slot] = item
+
+
+func _on_weapon_unequipped(slot: String) -> void:
+	## Called when the player drags a weapon or armor OUT of an equipment slot.
+	inventory[slot] = {}
+
+
+func _current_max_ammo() -> int:
+	## Returns the effective ammo cap — doubled at 25+ momentum stacks.
+	return MAX_AMMO * 2 if _ammo_doubled else MAX_AMMO
+
+
+## Colors for the burst ring at each 10-stack milestone.
+## Each entry matches: [10, 20, 30, 40, 50] stacks.
+const BURST_COLORS: Array = [
+	Color(1.0, 0.85, 0.2),   # 10 — gold
+	Color(1.0, 0.50, 0.1),   # 20 — orange
+	Color(1.0, 0.20, 0.2),   # 30 — red
+	Color(0.75, 0.2, 1.0),   # 40 — purple
+	Color(1.0, 1.0, 1.0),    # 50 — white (max power!)
+]
+
+
+func _on_hit_landed() -> void:
+	## Called whenever the player lands a hit (melee or ranged).
+	## Adds 1 momentum stack and updates the HUD.
+	var prev_momentum: int = momentum
+	momentum = mini(momentum + 1, MAX_MOMENTUM)
+	_update_momentum_hud()
+
+	# Every 10 stacks, fire a burst ring with a milestone color.
+	# The extra check (momentum != prev_momentum) prevents the ring from
+	# re-firing when already at max — mini() keeps it at 50, so without
+	# this check 50 % 10 == 0 would trigger on every single hit.
+	if momentum % 10 == 0 and momentum != prev_momentum:
+		var milestone: int = (momentum / 10) - 1   # 0=10stacks, 1=20, … 4=50
+		momentum_burst.trigger(BURST_COLORS[milestone], momentum)
+
+	# At exactly 25 stacks, double the ammo cap and fill the extra.
+	if momentum == 25 and not _ammo_doubled:
+		_ammo_doubled = true
+		ammo = mini(ammo * 2, _current_max_ammo())
+		hud.update_ammo(ammo, _current_max_ammo())
+
+	# Soul builds up with each hit and persists through damage.
+	# It will power spells once those are added!
+	soul = minf(soul + SOUL_PER_HIT, MAX_SOUL)
+	hud.update_soul(soul, MAX_SOUL)
+
+
+func take_damage() -> void:
+	## Called when an enemy hits the player.
+	## Resets ALL momentum and removes the ammo bonus if it was active.
+	if momentum == 0:
+		return
+
+	# Fire the shatter effect BEFORE resetting, so it knows the current size.
+	var break_color: Color = _momentum_color(momentum)
+	momentum_burst.trigger_break(break_color, momentum)
+
+	momentum = 0
+	_update_momentum_hud()
+
+	if _ammo_doubled:
+		_ammo_doubled = false
+		ammo = mini(ammo, MAX_AMMO)  # clamp any excess ammo back down
+		hud.update_ammo(ammo, MAX_AMMO)
+
+
+func _momentum_color(stacks: int) -> Color:
+	## Returns the fill color matching the current momentum level.
+	## Below 10 stacks it's the original blue — no milestone reached yet.
+	if stacks >= 50: return BURST_COLORS[4]  # white
+	if stacks >= 40: return BURST_COLORS[3]  # purple
+	if stacks >= 30: return BURST_COLORS[2]  # red
+	if stacks >= 20: return BURST_COLORS[1]  # orange
+	if stacks >= 10: return BURST_COLORS[0]  # gold
+	return Color(0.2, 0.4, 0.9)              # blue (original bar color)
+
+
+func _update_momentum_hud() -> void:
+	## Updates the momentum bar.  Stays blue from 0–49 stacks,
+	## then switches to a scrolling rainbow at max (50 stacks).
+	hud.update_momentum(momentum, MAX_MOMENTUM)
+	hud.set_momentum_rainbow(momentum == MAX_MOMENTUM)
 
 
 func _get_attack_direction() -> String:
