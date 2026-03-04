@@ -76,18 +76,13 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("playtest"):
 		return
-	# Skip straight to the game scene with the test character (Knight + "Test")
+	# Skip straight to the camp with the test character (Knight + "Test")
 	get_tree().set_meta("selected_character_index", 0)
 	get_tree().set_meta("player_name", "Test")
 	get_tree().set_meta("is_playtest", true)
+	get_tree().set_meta("player_gold", 9999)
 	$MusicPlayer.stop_song()
-	# game.tscn is already being background-loaded — use it if ready, else load normally
-	var status = ResourceLoader.load_threaded_get_status("res://scenes/game.tscn")
-	if status == ResourceLoader.THREAD_LOAD_LOADED:
-		var scene = ResourceLoader.load_threaded_get("res://scenes/game.tscn")
-		get_tree().change_scene_to_packed(scene)
-	else:
-		get_tree().change_scene_to_file("res://scenes/game.tscn")
+	get_tree().change_scene_to_file("res://scenes/camp.tscn")
 
 
 func _on_anim_done() -> void:

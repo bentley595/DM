@@ -79,7 +79,8 @@ func _on_name_submitted(text: String) -> void:
 	transitioning = true
 	get_tree().set_meta("player_name", clean_name)
 	get_tree().set_meta("selected_character_index", character_index)
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
+	get_tree().set_meta("player_gold", 0)
+	get_tree().change_scene_to_file("res://scenes/camp.tscn")
 
 
 func _input(event: InputEvent) -> void:

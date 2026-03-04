@@ -1,6 +1,6 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=20 format=3]
 
-[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="Script" path="res://scripts/camp.gd" id="1_camp"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3_player"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="4_hud"]
 [ext_resource type="Script" path="res://scripts/hud_bar.gd" id="5_hudbar"]
@@ -9,10 +9,19 @@
 [ext_resource type="Script" path="res://scripts/cursor.gd" id="9_cursor"]
 [ext_resource type="Script" path="res://scripts/music_player.gd" id="10_music"]
 [ext_resource type="Script" path="res://scripts/inventory_screen.gd" id="12_inv"]
-[ext_resource type="Script" path="res://scripts/chat_console.gd" id="13_chat"]
+[ext_resource type="Script" path="res://scripts/hud_gold_display.gd" id="13_gold"]
+[ext_resource type="Script" path="res://scripts/forge_station.gd" id="14_forge"]
+[ext_resource type="Script" path="res://scripts/shop_station.gd" id="15_shop"]
+[ext_resource type="Script" path="res://scripts/dungeon_entrance.gd" id="16_dungeon"]
+[ext_resource type="Script" path="res://scripts/infinite_dungeon_station.gd" id="17_infinite"]
+[ext_resource type="Script" path="res://scripts/unlock_prompt.gd" id="18_unlock"]
+[ext_resource type="Script" path="res://scripts/shop_ui.gd" id="19_shopui"]
+[ext_resource type="Script" path="res://scripts/forge_ui.gd" id="20_forgeui"]
+[ext_resource type="Script" path="res://scripts/camp_ground.gd" id="21_ground"]
+[ext_resource type="Script" path="res://scripts/chat_console.gd" id="22_chat"]
 
-[node name="Game" type="Node2D"]
-script = ExtResource("1_game")
+[node name="Camp" type="Node2D"]
+script = ExtResource("1_camp")
 
 [node name="Background" type="ColorRect" parent="."]
 anchors_preset = 15
@@ -20,14 +29,33 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.05, 0.05, 0.12, 1)
+color = Color(0.06, 0.06, 0.1, 1)
+
+[node name="CampGround" type="Node2D" parent="."]
+script = ExtResource("21_ground")
 
 [node name="TrainingDummy" type="Node2D" parent="."]
-position = Vector2(220, 90)
+position = Vector2(50, 90)
 script = ExtResource("8_dummy")
 
+[node name="ForgeStation" type="Node2D" parent="."]
+position = Vector2(120, 55)
+script = ExtResource("14_forge")
+
+[node name="ShopStation" type="Node2D" parent="."]
+position = Vector2(200, 55)
+script = ExtResource("15_shop")
+
+[node name="DungeonEntrance" type="Node2D" parent="."]
+position = Vector2(160, 148)
+script = ExtResource("16_dungeon")
+
+[node name="InfiniteDungeon" type="Node2D" parent="."]
+position = Vector2(270, 90)
+script = ExtResource("17_infinite")
+
 [node name="Player" parent="." instance=ExtResource("3_player")]
-position = Vector2(160, 90)
+position = Vector2(160, 110)
 
 [node name="HintLabel" type="Label" parent="."]
 anchors_preset = 7
@@ -44,7 +72,7 @@ grow_vertical = 0
 theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
 theme_override_font_sizes/font_size = 8
 horizontal_alignment = 1
-text = "WASD: Move   Space: Roll   LClick: Attack   RClick: Shoot   I: Inventory   T: Console   Esc: Back"
+text = "WASD: Move   E: Interact   I: Inventory   T: Console   Esc: Back"
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("4_hud")
@@ -78,6 +106,10 @@ fill_color = Color(0.2, 0.85, 0.7, 1)
 outline_color = Color(0.05, 0.35, 0.28, 1)
 icon_type = "arrow"
 
+[node name="GoldDisplay" type="Node2D" parent="HUD"]
+position = Vector2(280, 4)
+script = ExtResource("13_gold")
+
 [node name="CursorLayer" type="CanvasLayer" parent="."]
 layer = 20
 
@@ -88,9 +120,21 @@ script = ExtResource("9_cursor")
 layer = 10
 script = ExtResource("12_inv")
 
+[node name="ShopUI" type="CanvasLayer" parent="."]
+layer = 10
+script = ExtResource("19_shopui")
+
+[node name="ForgeUI" type="CanvasLayer" parent="."]
+layer = 10
+script = ExtResource("20_forgeui")
+
+[node name="UnlockPrompt" type="CanvasLayer" parent="."]
+layer = 11
+script = ExtResource("18_unlock")
+
 [node name="ChatConsole" type="CanvasLayer" parent="."]
 layer = 12
-script = ExtResource("13_chat")
+script = ExtResource("22_chat")
 
 [node name="MusicPlayer" type="Node" parent="."]
 script = ExtResource("10_music")

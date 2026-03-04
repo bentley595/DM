@@ -16,6 +16,10 @@ extends Node2D
 ## common pattern: create the node, call a setup function, then add it to
 ## the tree.
 
+## Emitted when this projectile hits a target.
+## The player connects to this in _shoot() to gain momentum.
+signal hit_landed
+
 # ── Projectile shapes ────────────────────────────────────────────────
 # Each template has a unique 5×5 pixel-art grid.
 # Grid values:  0 = transparent,  1 = outline,  2 = fill,  3 = bright center
@@ -207,6 +211,7 @@ func _process(delta: float) -> void:
 		var dist: float = (target.global_position - global_position).length()
 		if dist <= HIT_DISTANCE:
 			target.hit()
+			hit_landed.emit()
 			queue_free()
 			return
 

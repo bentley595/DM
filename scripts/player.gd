@@ -211,21 +211,6 @@ var inventory: Dictionary = {"bag": [], "melee": {}, "ranged": {}, "armor": {}}
 ## True when the game was launched via the P key shortcut.
 var is_playtest: bool = false
 
-## How long the right mouse button has been held this press.
-var shoot_hold_timer: float = 0.0
-
-## True while the right mouse button is held down.
-var shoot_held: bool = false
-
-## Set to true once a hold triggers a template cycle — prevents
-## the release from also firing a shot.
-var shoot_hold_cycled: bool = false
-
-## The 4 templates in cycle order.
-const TEMPLATES: Array = ["armored", "robed", "light", "clothed"]
-
-## How long you need to hold right click before it cycles (seconds).
-const HOLD_CYCLE_TIME: float = 0.3
 
 # ── Node references ───────────────────────────────────────────────────
 
@@ -252,6 +237,13 @@ func _ready() -> void:
 	var player_name: String = get_tree().get_meta("player_name", "Test")
 	is_playtest = get_tree().get_meta("is_playtest", false)
 	setup(char_index, player_name)
+
+	# If there's a saved inventory (from a previous camp/dungeon visit),
+	# restore it instead of using the defaults that setup() just created.
+	# This is how your items persist when going camp → dungeon → camp!
+	var saved_inv: Dictionary = get_tree().get_meta("player_inventory", {})
+	if not saved_inv.is_empty():
+		inventory = saved_inv
 
 	# Listen for weapon changes from the inventory screen
 	_inv_screen.weapon_equipped.connect(_on_weapon_equipped)
@@ -303,17 +295,43 @@ func setup(character_index: int, player_name: String) -> void:
 
 
 func _process(delta: float) -> void:
+	# ── Check if ANY overlay is open ────────────────────────────
+	# Before doing anything, check if an overlay is blocking input.
+	# This prevents hotkeys from opening menus on top of each other
+	# (e.g. pressing I while the chat is open, or pressing T while
+	# the inventory is open).
+	var parent: Node = get_parent()
+	var _overlay_open: bool = false
+	if _inv_screen.is_open:
+		_overlay_open = true
+	elif parent:
+		for overlay_name in ["ShopUI", "ForgeUI", "UnlockPrompt", "ChatConsole"]:
+			if parent.has_node(overlay_name) and parent.get_node(overlay_name).is_open:
+				_overlay_open = true
+				break
+
 	# ── Inventory toggle ─────────────────────────────────────────
-	# Press I to open the inventory.  We check this FIRST, before
-	# anything else, so it always works regardless of other state.
-	if Input.is_action_just_pressed("inventory"):
+	# Press I to open the inventory — but only if nothing else is open!
+	if Input.is_action_just_pressed("inventory") and not _overlay_open:
 		_inv_screen.open(inventory)
 		return
 
-	# While the inventory is open, skip ALL movement and combat input.
-	# This prevents the player from accidentally shooting while dragging weapons!
-	if _inv_screen.is_open:
+	# If any overlay is open, skip ALL movement and combat input.
+	if _overlay_open:
 		return
+
+	# ── Interact with nearby stations ────────────────────────────
+	# Press E to interact with the nearest interactable (forge, shop, etc.)
+	# This uses the same groups pattern as hit detection — we look for
+	# nodes in the "interactable" group, check distance, and call their
+	# on_interact() method.  Any node that adds itself to the
+	# "interactable" group and has on_interact() will work automatically!
+	if Input.is_action_just_pressed("interact"):
+		var interactables: Array = get_tree().get_nodes_in_group("interactable")
+		for obj in interactables:
+			if global_position.distance_to(obj.global_position) <= 30.0:
+				obj.on_interact()
+				break
 
 	# ── Update roll cooldown ─────────────────────────────────────
 	# This runs every frame, even when we're not rolling.
@@ -432,45 +450,27 @@ func _process(delta: float) -> void:
 		return
 
 	# ── Check for attack input ───────────────────────────────────
-	# Same idea as roll: "just_pressed" (not "pressed") because we
-	# want one click = one swing, not continuous swinging while held.
+	# We use "pressed" (not "just_pressed") so HOLDING left click
+	# auto-swings as fast as the cooldown allows.  This matters at
+	# high momentum — the cooldown gets so short (down to 0.1s!)
+	# that no one could click fast enough to keep up.  Holding the
+	# button lets the player actually reach max attack speed.
 	#
-	# Notice there's no "return" here!  Unlike the old version that
-	# froze the player during a swing, we now let movement continue
-	# below.  The character can walk AND slash at the same time.
+	# The cooldown timer prevents double-swings — you can only
+	# swing when it reaches 0, so holding won't bypass anything.
+	#
 	# Rolling still takes priority (checked above), which is standard
 	# in action games — it feels terrible to try to dodge and
 	# accidentally attack instead!
-	if Input.is_action_just_pressed("attack") and swing_cooldown_timer <= 0 and not is_rolling:
+	if Input.is_action_pressed("attack") and swing_cooldown_timer <= 0 and not is_rolling:
 		_start_swing(_get_attack_direction())
 
 	# ── Check for shoot input ───────────────────────────────────
 	# Right-click fires a projectile toward the mouse cursor.
-	#
-	# In PLAYTEST mode, holding right click cycles through projectile
-	# templates instead of shooting.  A quick tap still fires.
-	# This lets you preview all 4 shapes without switching characters!
-	#
-	# In normal mode, it's simple: one click = one shot.
-	if Input.is_action_just_pressed("shoot"):
-		shoot_held = true
-		shoot_hold_timer = 0.0
-		shoot_hold_cycled = false
-
-	if shoot_held and Input.is_action_pressed("shoot"):
-		shoot_hold_timer += delta
-
-		# In playtest mode, if held long enough, cycle the template
-		if is_playtest and shoot_hold_timer >= HOLD_CYCLE_TIME and not shoot_hold_cycled:
-			shoot_hold_cycled = true
-			_cycle_projectile_template()
-
-	if Input.is_action_just_released("shoot"):
-		# Only shoot if we DIDN'T cycle (quick tap)
-		if not shoot_hold_cycled and shoot_cooldown_timer <= 0 \
-		and not is_rolling and ammo > 0 and not is_reloading:
-			_shoot()
-		shoot_held = false
+	# One click = one shot (when cooldown is ready and you have ammo).
+	if Input.is_action_just_pressed("shoot") and shoot_cooldown_timer <= 0 \
+	and not is_rolling and ammo > 0 and not is_reloading:
+		_shoot()
 
 	# ── Apply movement ───────────────────────────────────────────
 	# position += direction * speed * delta
@@ -634,34 +634,6 @@ func _check_swing_hits(direction: String) -> void:
 		if in_arc:
 			target.hit()
 			_on_hit_landed()
-
-
-func _cycle_projectile_template() -> void:
-	## Cycles to the next projectile template (playtest only).
-	##
-	## Key concept: **modulo (%) for wrapping**.
-	## When we reach the end of the list (index 3), we want to go back
-	## to the start (index 0).  The % operator does this perfectly:
-	##   (0 + 1) % 4 = 1    (armored → robed)
-	##   (1 + 1) % 4 = 2    (robed → light)
-	##   (2 + 1) % 4 = 3    (light → clothed)
-	##   (3 + 1) % 4 = 0    (clothed → armored — wraps around!)
-	var current_idx: int = TEMPLATES.find(char_template)
-	var next_idx: int = (current_idx + 1) % TEMPLATES.size()
-	char_template = TEMPLATES[next_idx]
-
-	# Also update the colors to match a character from that template.
-	# We pick the FIRST character of each template so you can see
-	# representative colors.
-	var chars: Array = CharData.characters()
-	var sample_index: int = 0
-	match char_template:
-		"armored": sample_index = 0   # Knight
-		"robed": sample_index = 5     # Mage
-		"light": sample_index = 11    # Assassin
-		"clothed": sample_index = 16  # Cleric
-	var palette: Array = chars[sample_index]["palette"]
-	projectile_colors = [palette[1], palette[7], palette[3]]
 
 
 func _shoot() -> void:

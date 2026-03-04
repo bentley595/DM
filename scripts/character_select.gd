@@ -33,6 +33,8 @@ var selected_index: int = 0
 ## Guard flag — prevents double-transitions when mashing keys.
 var transitioning: bool = false
 
+var CharSelectSong = preload("res://music/character_select.gd")
+
 # ── Node references ───────────────────────────────────────────────────
 # @onready means "grab this node reference AFTER the scene tree is built."
 # The $ syntax is shorthand for get_node() — it finds a child by its path.
@@ -49,6 +51,10 @@ func _ready() -> void:
 	# default — used if no value was stored yet (first visit).
 	selected_index = get_tree().get_meta("selected_character_index", 0)
 	_update_display()
+
+	var song = CharSelectSong.new()
+	$MusicPlayer.load_song(song.SONG_DATA)
+	$MusicPlayer.play_song()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -85,6 +91,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		# can read it.  set_meta() saves a key-value pair that survives
 		# scene changes (unlike regular variables which are destroyed).
 		transitioning = true
+		$MusicPlayer.stop_song()
 		get_tree().set_meta("selected_character_index", selected_index)
 		get_tree().change_scene_to_file("res://scenes/name_entry.tscn")
 		get_viewport().set_input_as_handled()
@@ -92,6 +99,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action("ui_cancel"):
 		# Escape — go back to the file select screen.
 		transitioning = true
+		$MusicPlayer.stop_song()
 		get_tree().change_scene_to_file("res://scenes/file_select.tscn")
 		get_viewport().set_input_as_handled()
 

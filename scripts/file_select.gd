@@ -27,6 +27,8 @@ var slots: Array = []
 ## Guard flag — prevents input while we're switching scenes.
 var transitioning: bool = false
 
+var FileSelectSong = preload("res://music/file_select.gd")
+
 
 func _ready() -> void:
 	# Grab the 3 slot nodes from the HBoxContainer.
@@ -35,6 +37,10 @@ func _ready() -> void:
 
 	# Paint the initial selection (slot 0 starts highlighted).
 	_update_selection()
+
+	var song = FileSelectSong.new()
+	$MusicPlayer.load_song(song.SONG_DATA)
+	$MusicPlayer.play_song()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -73,19 +79,23 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action("ui_cancel"):
 		# Escape/gamepad B — go back to the title screen.
 		transitioning = true
+		$MusicPlayer.stop_song()
 		get_tree().change_scene_to_file("res://scenes/title_screen.tscn")
 		get_viewport().set_input_as_handled()
 
 	elif event.is_action("playtest"):
-		# P key — jump straight into the game with no save file.
+		# P key — jump straight into camp with no save file.
 		# This skips character creation so you can test gameplay fast!
 		# We set a default character (Knight, index 0) and name "Test"
-		# so the game scene has something to work with.
+		# so the camp scene has something to work with.
+		# Playtest mode gives 9999 gold and auto-unlocks all booths!
 		transitioning = true
+		$MusicPlayer.stop_song()
 		get_tree().set_meta("selected_character_index", 0)
 		get_tree().set_meta("player_name", "Test")
 		get_tree().set_meta("is_playtest", true)
-		get_tree().change_scene_to_file("res://scenes/game.tscn")
+		get_tree().set_meta("player_gold", 9999)
+		get_tree().change_scene_to_file("res://scenes/camp.tscn")
 		get_viewport().set_input_as_handled()
 
 
@@ -116,5 +126,6 @@ func _select_file(index: int) -> void:
 	# Later this will check if the file already has save data (and load
 	# the game directly) — for now, every slot starts fresh.
 	transitioning = true
+	$MusicPlayer.stop_song()
 	get_tree().set_meta("selected_file_slot", index)
 	get_tree().change_scene_to_file("res://scenes/character_select.tscn")

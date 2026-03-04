@@ -25,6 +25,7 @@ extends CanvasLayer
 @onready var soul_bar: Node2D = $SoulBar
 @onready var roll_cooldown: Node2D = $RollCooldown
 @onready var ammo_display: Node2D = $AmmoDisplay
+@onready var gold_display: Node2D = $GoldDisplay if has_node("GoldDisplay") else null
 
 
 func _ready() -> void:
@@ -74,3 +75,8 @@ func update_reload_progress(refilled: int, max_val: int) -> void:
 	ammo_display.set_reload_progress(refilled, max_val)
 
 
+func update_gold(amount: int) -> void:
+	## Updates the gold counter display.  Only works if a GoldDisplay
+	## node exists in the HUD (camp scene has one, dungeon might not).
+	if gold_display:
+		gold_display.set_gold(amount)

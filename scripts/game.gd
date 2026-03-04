@@ -11,24 +11,17 @@ extends Node2D
 ## enemies, items) as their own scenes, then combine them in a level scene.
 ## For multiplayer later, you'd instance multiple player scenes!
 
-## Preload the test song data.
-## preload() loads the file at compile time (when the game starts), not at runtime.
-## This is fast because Godot doesn't have to search for the file while playing.
-var TestSong = preload("res://music/test_song.gd")
-
-
 func _ready() -> void:
-	# Start playing background music!
-	# $MusicPlayer is shorthand for get_node("MusicPlayer") — it finds the
-	# child node named "MusicPlayer" that we added in the scene.
-	var song_resource = TestSong.new()
-	$MusicPlayer.load_song(song_resource.SONG_DATA)
-	$MusicPlayer.play_song()
+	pass
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Don't process input while the chat console is open
+	if has_node("ChatConsole") and $ChatConsole.is_open:
+		return
+
 	if event.is_action_pressed("ui_cancel"):
-		# Stop music before leaving the scene
-		$MusicPlayer.stop_song()
-		# Escape goes back to file select.
-		get_tree().change_scene_to_file("res://scenes/file_select.tscn")
+		# Save inventory before returning to camp so nothing is lost.
+		var player: Node2D = $Player
+		get_tree().set_meta("player_inventory", player.inventory.duplicate(true))
+		get_tree().change_scene_to_file("res://scenes/camp.tscn")
