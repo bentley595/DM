@@ -80,6 +80,15 @@ func _on_name_submitted(text: String) -> void:
 	get_tree().set_meta("player_name", clean_name)
 	get_tree().set_meta("selected_character_index", character_index)
 	get_tree().set_meta("player_gold", 0)
+
+	# Give the player 3 Slime Essences so they can enter the dungeon
+	# immediately!  Without these, they'd have 0 gold and no way to
+	# buy ingredients — stuck with nothing to do.  3 is the perfect
+	# number because it fills all 3 starting crafting slots.
+	get_tree().set_meta("starting_bag_items", [
+		{"id": "slime_essence", "level": 1, "count": 3},
+	])
+
 	get_tree().change_scene_to_file("res://scenes/camp.tscn")
 
 

@@ -70,14 +70,15 @@ func _draw_station() -> void:
 
 
 func on_interact() -> void:
-	# Save the player's inventory and gold before transitioning
+	# Open the dungeon crafting UI instead of going straight in.
+	# The crafting UI lets the player choose WHAT kind of dungeon
+	# they want by placing ingredients into slots!
 	var camp: Node = get_parent()
-	if camp.has_method("_save_player_state"):
-		camp._save_player_state()
-	# Stop camp music before entering the dungeon
-	if camp.has_node("MusicPlayer"):
-		camp.get_node("MusicPlayer").stop_song()
-	get_tree().change_scene_to_file("res://scenes/game.tscn")
+	if camp.has_node("DungeonCraftUI"):
+		var player: Node2D = _find_player()
+		var gold: int = get_tree().get_meta("player_gold", 0)
+		if player:
+			camp.get_node("DungeonCraftUI").open(player.inventory, gold)
 
 
 func _draw_label(text: String, x_offset: int, y_offset: int) -> void:

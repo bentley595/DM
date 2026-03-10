@@ -14,8 +14,9 @@ extends CanvasLayer
 ##   3. Mouse UP without moving → it was a CLICK (show item stats in info panel)
 ## This gives you BOTH click-to-inspect AND drag-to-equip from the same button!
 
-const WeaponData = preload("res://scripts/weapon_data.gd")
-const ArmorData  = preload("res://scripts/armor_data.gd")
+const WeaponData     = preload("res://scripts/weapon_data.gd")
+const ArmorData      = preload("res://scripts/armor_data.gd")
+const IngredientData = preload("res://scripts/ingredient_data.gd")
 
 signal weapon_equipped(slot: String, item: Dictionary)
 signal weapon_unequipped(slot: String)
@@ -52,6 +53,7 @@ const COL_SLOT     := Color(0.12, 0.12, 0.22, 1.0)
 const COL_SLOT_HLT := Color(0.9, 0.75, 0.3, 1.0)    # gold highlight = valid drop / selected
 const COL_SLOT_BAD := Color(0.7, 0.2, 0.2, 1.0)      # red = wrong type
 const COL_WEAPON   := Color(0.8, 0.75, 0.3, 1.0)     # icon fill / gold text
+const COL_INGR    := Color(0.4, 0.8, 0.5, 1.0)      # green — ingredient icons
 const COL_LABEL    := Color(0.75, 0.75, 0.85, 1.0)
 const COL_TITLE    := Color(1.0, 1.0, 1.0, 1.0)
 const COL_DIVIDER  := Color(0.3, 0.3, 0.5, 1.0)
@@ -65,10 +67,11 @@ const SCROLL_ARROW_H: int = 5
 const TAB_Y: int = BAG_Y - 11
 const TAB_H: int = 9
 const TAB_DEFS: Array = [
-	{"id": "all",    "label": "ALL",    "w": 16},
-	{"id": "melee",  "label": "MELEE",  "w": 24},
-	{"id": "ranged", "label": "RANGED", "w": 28},
-	{"id": "armor",  "label": "ARMOR",  "w": 24},
+	{"id": "all",        "label": "ALL",    "w": 16},
+	{"id": "melee",      "label": "MELEE",  "w": 24},
+	{"id": "ranged",     "label": "RANGED", "w": 28},
+	{"id": "armor",      "label": "ARMOR",  "w": 24},
+	{"id": "ingredient", "label": "INGR",   "w": 20},
 ]
 
 # Item info panel (shown below the bag when an item is clicked)
@@ -405,12 +408,16 @@ func _max_scroll() -> int:
 	return maxi(0, total_rows - BAG_ROWS)
 
 
-## Looks up base item data (from weapon_data.gd or armor_data.gd) by item ID.
+## Looks up base item data by item ID.
+## Checks weapons, armor, AND ingredients — so all item types work
+## in the same inventory system without special-casing!
 func _get_item_data(id: String) -> Dictionary:
 	if WeaponData.WEAPONS.has(id):
 		return WeaponData.WEAPONS[id]
 	if ArmorData.ARMOR.has(id):
 		return ArmorData.ARMOR[id]
+	if IngredientData.INGREDIENTS.has(id):
+		return IngredientData.INGREDIENTS[id]
 	return {}
 
 
@@ -521,6 +528,11 @@ func _draw_item_slot(r: Rect2, item: Dictionary, mp: Vector2, drop_slot: String)
 			var cy: int = int(r.position.y) + int((r.size.y - 7) / 2.0)
 			_draw_item_icon(cx, cy, item_id)
 			_draw_text(cx + 9, cy + 1, data.get("name", "").to_upper(), COL_WEAPON)
+			# Show stack count below the name text
+			var stack_count: int = item.get("count", 1)
+			if stack_count > 1:
+				var count_str: String = "x" + str(stack_count)
+				_draw_text(cx + 9, cy + 7, count_str, COL_SLOT_HLT)
 
 
 func _draw_info_panel() -> void:
@@ -545,12 +557,17 @@ func _draw_info_panel() -> void:
 	var lvl_x: int = INFO_X + INFO_W - 3 - lvl_str.length() * 4
 	_draw_text(lvl_x, INFO_Y + 3, lvl_str, COL_WEAPON)
 
-	# Row 2: stats — DEF for armor, DPA + DPS for weapons
-	if data.get("type", "") == "armor":
-		var item_type: String = data.get("type", "").to_upper()
-		_draw_text(lx, INFO_Y + 13, item_type, COL_LABEL)
+	# Row 2: stats — DEF for armor, description for ingredients, DPA + DPS for weapons
+	var item_type: String = data.get("type", "")
+	if item_type == "armor":
+		_draw_text(lx, INFO_Y + 13, "ARMOR", COL_LABEL)
 		var eff_def: int = data.get("defense", 0) + level - 1
 		_draw_text(lx + 32, INFO_Y + 13, "DEF " + str(eff_def), COL_WEAPON)
+	elif item_type == "ingredient":
+		var desc: String = data.get("description", "")
+		var cat: String = data.get("category", "").to_upper()
+		_draw_text(lx, INFO_Y + 13, cat, COL_LABEL)
+		_draw_text(lx + 32, INFO_Y + 13, desc, COL_WEAPON)
 	else:
 		var dpa: int = data.get("damage", 0) + level - 1
 		var dps: int = roundi(float(dpa) / data.get("cooldown", 1.0))
@@ -559,11 +576,14 @@ func _draw_info_panel() -> void:
 
 
 func _draw_item_icon(x: int, y: int, item_id: String) -> void:
-	var icon: Array = _get_item_data(item_id).get("icon", [])
+	var data: Dictionary = _get_item_data(item_id)
+	var icon: Array = data.get("icon", [])
+	# Ingredients draw in green, everything else in gold
+	var icon_col: Color = COL_INGR if data.get("type", "") == "ingredient" else COL_WEAPON
 	for row in range(icon.size()):
 		for col in range(icon[row].size()):
 			if icon[row][col] == 1:
-				_canvas.draw_rect(Rect2(x + col, y + row, 1, 1), COL_WEAPON)
+				_canvas.draw_rect(Rect2(x + col, y + row, 1, 1), icon_col)
 
 
 func _draw_border(x: int, y: int, w: int, h: int, col: Color) -> void:

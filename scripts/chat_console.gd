@@ -20,9 +20,10 @@ extends CanvasLayer
 ## We use String.split(" ") to break it into an Array: ["give", "gold", "500"]
 ## Then we check parts[0] to decide what to do.
 
-const WeaponData = preload("res://scripts/weapon_data.gd")
-const ArmorData  = preload("res://scripts/armor_data.gd")
-const EasterEgg  = preload("res://music/easter_egg.gd")
+const WeaponData     = preload("res://scripts/weapon_data.gd")
+const ArmorData      = preload("res://scripts/armor_data.gd")
+const IngredientData = preload("res://scripts/ingredient_data.gd")
+const EasterEgg      = preload("res://music/easter_egg.gd")
 
 # ── Layout ────────────────────────────────────────────────────────────────
 # The console sits at the bottom of the screen (320×180 viewport).
@@ -297,6 +298,8 @@ func _execute_command(parts: Array) -> void:
 			_add_message("GOD MODE COMING SOON!", COL_HELP)
 		"momentum":
 			_cmd_momentum(parts)
+		"slots":
+			_cmd_slots(parts)
 		"bend":
 			_cmd_bend()
 		"unbend":
@@ -313,6 +316,7 @@ func _cmd_help() -> void:
 	_add_message("/SET GOLD (AMT) - SET GOLD", COL_HELP)
 	_add_message("/HEAL - RESTORE HEALTH", COL_HELP)
 	_add_message("/MOMENTUM (AMT) - SET STACKS", COL_HELP)
+	_add_message("/SLOTS (3-6) - SET CRAFT SLOTS", COL_HELP)
 	_add_message("/UNLOCK ALL - UNLOCK BOOTHS", COL_HELP)
 	_add_message("/TP (X) (Y) - TELEPORT", COL_HELP)
 	_add_message("/CLEAR - CLEAR CHAT", COL_HELP)
@@ -361,8 +365,16 @@ func _cmd_set(parts: Array) -> void:
 
 
 func _cmd_heal() -> void:
-	# Health system not implemented yet — placeholder message.
-	_add_message("HEAL: COMING SOON!", COL_HELP)
+	var player: Node2D = _find_player()
+	if not player:
+		_add_message("ERROR: NO PLAYER FOUND", COL_ERROR)
+		return
+	player.health = player.MAX_HEALTH
+	player.is_dead = false
+	var hud_node: CanvasLayer = _find_hud()
+	if hud_node:
+		hud_node.update_health(player.health, player.MAX_HEALTH)
+	_add_message("HEALTH RESTORED!", COL_SUCCESS)
 
 
 func _cmd_momentum(parts: Array) -> void:
@@ -381,6 +393,16 @@ func _cmd_momentum(parts: Array) -> void:
 	if hud:
 		hud.update_momentum(amount, 50)
 	_add_message("MOMENTUM SET TO " + str(amount), COL_SUCCESS)
+
+
+func _cmd_slots(parts: Array) -> void:
+	if parts.size() < 2 or not parts[1].is_valid_int():
+		_add_message("USAGE: /SLOTS (3-6)", COL_ERROR)
+		return
+
+	var count: int = clampi(parts[1].to_int(), 3, 6)
+	get_tree().set_meta("dungeon_slot_count", count)
+	_add_message("DUNGEON SLOTS SET TO " + str(count), COL_SUCCESS)
 
 
 func _cmd_unlock(parts: Array) -> void:
@@ -469,10 +491,22 @@ func _give_item(item_id: String) -> void:
 		_add_message("ADDED " + aname.to_upper() + " TO BAG", COL_SUCCESS)
 		return
 
+	# Check if it's an ingredient
+	if IngredientData.INGREDIENTS.has(item_id):
+		var player: Node2D = _find_player()
+		if not player:
+			_add_message("ERROR: NO PLAYER FOUND", COL_ERROR)
+			return
+		IngredientData.add_to_bag(player.inventory["bag"], item_id)
+		var iname: String = IngredientData.INGREDIENTS[item_id]["name"]
+		_add_message("ADDED " + iname.to_upper() + " TO BAG", COL_SUCCESS)
+		return
+
 	# Not found — show available IDs
 	_add_message("UNKNOWN ITEM: " + item_id.to_upper(), COL_ERROR)
 	var ids: String = ", ".join(WeaponData.WEAPONS.keys())
 	ids += ", " + ", ".join(ArmorData.ARMOR.keys())
+	ids += ", " + ", ".join(IngredientData.INGREDIENTS.keys())
 	_add_message("ITEMS: " + ids.to_upper(), COL_SYSTEM)
 
 

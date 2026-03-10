@@ -23,6 +23,7 @@ extends Node2D
 const CharData = preload("res://scripts/character_data.gd")
 const WeaponData = preload("res://scripts/weapon_data.gd")
 const ArmorData  = preload("res://scripts/armor_data.gd")
+const IngredientData = preload("res://scripts/ingredient_data.gd")
 
 ## Preload the projectile script so we can create new projectile nodes at runtime.
 ## Key concept: **preload vs load**.
@@ -31,6 +32,20 @@ const ArmorData  = preload("res://scripts/armor_data.gd")
 ## which can cause tiny stutters the first time.  Since we know we'll
 ## need projectiles, preloading is better here.
 const ProjectileScript = preload("res://scripts/projectile.gd")
+
+# ── Health settings ───────────────────────────────────────────────────
+## The player has health points (HP).  Getting hit by enemies reduces
+## health.  When it reaches 0, you "die" and return to camp without
+## earning any dungeon gold.  Health resets to full on each dungeon run.
+
+## Maximum health points.
+const MAX_HEALTH: int = 100
+
+## Current health.  Starts at MAX_HEALTH, reduced by enemy contact.
+var health: int = MAX_HEALTH
+
+## True when the player has died (prevents further damage/input).
+var is_dead: bool = false
 
 # ── Movement settings ─────────────────────────────────────────────────
 
@@ -245,6 +260,22 @@ func _ready() -> void:
 	if not saved_inv.is_empty():
 		inventory = saved_inv
 
+	# Check for starting bag items (from playtest mode).
+	# These get merged INTO the existing bag rather than replacing it,
+	# so they work alongside the default equipment from setup().
+	# Check for starting bag items (from playtest mode or new game).
+	# Uses add_to_bag so ingredients stack properly instead of
+	# flooding the bag with separate entries!
+	var starting_items: Array = get_tree().get_meta("starting_bag_items", [])
+	if not starting_items.is_empty():
+		for item in starting_items:
+			var id: String = item.get("id", "")
+			if IngredientData.INGREDIENTS.has(id):
+				IngredientData.add_to_bag(inventory["bag"], id, item.get("count", 1))
+			else:
+				inventory["bag"].append(item)
+		get_tree().remove_meta("starting_bag_items")
+
 	# Listen for weapon changes from the inventory screen
 	_inv_screen.weapon_equipped.connect(_on_weapon_equipped)
 	_inv_screen.weapon_unequipped.connect(_on_weapon_unequipped)
@@ -289,12 +320,17 @@ func setup(character_index: int, player_name: String) -> void:
 	inventory.armor  = {"id": ArmorData.default_armor(char_template),   "level": 1}
 
 	# Set the HUD to show real values instead of placeholders
+	hud.update_health(health, MAX_HEALTH)
 	hud.update_ammo(ammo, _current_max_ammo())
 	hud.update_soul(soul, MAX_SOUL)
 	_update_momentum_hud()
 
 
 func _process(delta: float) -> void:
+	# Skip everything if the player is dead — no movement, no attacks.
+	if is_dead:
+		return
+
 	# ── Check if ANY overlay is open ────────────────────────────
 	# Before doing anything, check if an overlay is blocking input.
 	# This prevents hotkeys from opening menus on top of each other
@@ -305,7 +341,7 @@ func _process(delta: float) -> void:
 	if _inv_screen.is_open:
 		_overlay_open = true
 	elif parent:
-		for overlay_name in ["ShopUI", "ForgeUI", "UnlockPrompt", "ChatConsole"]:
+		for overlay_name in ["ShopUI", "ForgeUI", "UnlockPrompt", "ChatConsole", "DungeonCraftUI"]:
 			if parent.has_node(overlay_name) and parent.get_node(overlay_name).is_open:
 				_overlay_open = true
 				break
@@ -740,23 +776,61 @@ func _on_hit_landed() -> void:
 	hud.update_soul(soul, MAX_SOUL)
 
 
-func take_damage() -> void:
+func take_damage(amount: int = 1) -> void:
 	## Called when an enemy hits the player.
-	## Resets ALL momentum and removes the ammo bonus if it was active.
-	if momentum == 0:
+	## Reduces health, resets ALL momentum, and checks for death.
+	##
+	## Key concept: **damage + punishment**.
+	## Getting hit does TWO things: (1) reduces your health bar, and
+	## (2) resets your momentum streak to 0.  This double punishment
+	## makes dodging enemies feel critical — one hit wipes out all
+	## your speed and attack bonuses!
+	if is_dead:
 		return
 
-	# Fire the shatter effect BEFORE resetting, so it knows the current size.
-	var break_color: Color = _momentum_color(momentum)
-	momentum_burst.trigger_break(break_color, momentum)
+	# Reduce health and update the HUD health bar.
+	health = maxi(health - amount, 0)
+	hud.update_health(health, MAX_HEALTH)
 
-	momentum = 0
-	_update_momentum_hud()
+	# Reset momentum (the punishment for getting hit).
+	if momentum > 0:
+		# Fire the shatter effect BEFORE resetting, so it knows the current size.
+		var break_color: Color = _momentum_color(momentum)
+		momentum_burst.trigger_break(break_color, momentum)
 
-	if _ammo_doubled:
-		_ammo_doubled = false
-		ammo = mini(ammo, MAX_AMMO)  # clamp any excess ammo back down
-		hud.update_ammo(ammo, MAX_AMMO)
+		momentum = 0
+		_update_momentum_hud()
+
+		if _ammo_doubled:
+			_ammo_doubled = false
+			ammo = mini(ammo, MAX_AMMO)  # clamp any excess ammo back down
+			hud.update_ammo(ammo, MAX_AMMO)
+
+	# Check for death — health reached 0!
+	if health <= 0:
+		_die()
+
+
+func _die() -> void:
+	## Called when health reaches 0.  Saves inventory and returns to camp.
+	##
+	## Key concept: **death penalty design**.
+	## When you die, you keep your inventory items (weapons, armor,
+	## ingredients) but you DON'T get any gold earned during the run.
+	## The ingredients you used to craft the dungeon are already consumed,
+	## so dying means you lost those ingredients AND got no gold reward.
+	## This makes dying feel punishing without being too harsh!
+	is_dead = true
+
+	# Save inventory so items persist.
+	get_tree().set_meta("player_inventory", inventory.duplicate(true))
+
+	# Clear the dungeon recipe.
+	if get_tree().has_meta("dungeon_recipe"):
+		get_tree().remove_meta("dungeon_recipe")
+
+	# Return to camp — no gold reward.
+	get_tree().change_scene_to_file("res://scenes/camp.tscn")
 
 
 func _momentum_color(stacks: int) -> Color:

@@ -57,6 +57,9 @@ const LETTERS: Dictionary = {
 	"8": [[0,1,0],[1,0,1],[0,1,0],[1,0,1],[0,1,0]],
 	"9": [[0,1,0],[1,0,1],[0,1,1],[0,0,1],[0,1,0]],
 	" ": [[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],
+	"/": [[0,0,1],[0,0,1],[0,1,0],[1,0,0],[1,0,0]],
+	"!": [[0,1,0],[0,1,0],[0,1,0],[0,0,0],[0,1,0]],
+	"+": [[0,0,0],[0,1,0],[1,1,1],[0,1,0],[0,0,0]],
 }
 
 # ── State ─────────────────────────────────────────────────────────
@@ -70,16 +73,26 @@ var text: String = "":
 ## Color of the drawn pixels.
 @export var text_color: Color = Color.WHITE
 
+## How many screen pixels each font pixel occupies.
+## 1 = normal (3×5 per letter), 2 = double size (6×10), etc.
+## This is the same concept as character_sprite's pixel_size —
+## scaling up pixel art by drawing bigger squares keeps it crisp!
+var pixel_size: int = 1:
+	set(value):
+		pixel_size = value
+		queue_redraw()
+
 
 func _draw() -> void:
 	if text.is_empty():
 		return
 
 	var upper: String = text.to_upper()
+	var ps: int = pixel_size
 
 	# Calculate the total pixel width so we can center it at x=0.
-	# n glyphs = n*3 wide + (n-1) gaps of 1px each = n*4 - 1 total px.
-	var total_w: int = upper.length() * (GLYPH_W + GLYPH_GAP) - GLYPH_GAP
+	# Each glyph is GLYPH_W * ps wide, with GLYPH_GAP * ps gap between them.
+	var total_w: int = upper.length() * (GLYPH_W + GLYPH_GAP) * ps - GLYPH_GAP * ps
 	var x: int      = -total_w / 2
 	var y: int      = 0
 
@@ -89,5 +102,5 @@ func _draw() -> void:
 			for row in GLYPH_H:
 				for col in GLYPH_W:
 					if glyph[row][col] == 1:
-						draw_rect(Rect2(x + col, y + row, 1, 1), text_color)
-		x += GLYPH_W + GLYPH_GAP
+						draw_rect(Rect2(x + col * ps, y + row * ps, ps, ps), text_color)
+		x += (GLYPH_W + GLYPH_GAP) * ps

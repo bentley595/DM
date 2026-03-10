@@ -35,6 +35,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if has_node("ChatConsole") and $ChatConsole.is_open:
 		return
+	if has_node("DungeonCraftUI") and $DungeonCraftUI.is_open:
+		return
 
 	if event.is_action_pressed("ui_cancel"):
 		# Save the player's inventory and gold before leaving.

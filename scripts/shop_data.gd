@@ -32,4 +32,16 @@ const SHOP_ITEMS: Array = [
 	{"id": "silk_robe",  "price": 70},
 	{"id": "leather",    "price": 75},
 	{"id": "cloth_vest", "price": 70},
+
+	# ── Dungeon Ingredients (30-200G) ───────────────────────────
+	# Place these in crafting slots at the dungeon entrance to
+	# generate a custom dungeon!
+	{"id": "slime_essence",  "price": 30},
+	{"id": "bone_fragment",  "price": 30},
+	{"id": "shadow_wisp",    "price": 60},
+	{"id": "gold_dust",      "price": 80},
+	{"id": "iron_chunk",     "price": 40},
+	{"id": "lucky_clover",   "price": 100},
+	{"id": "stone_brick",    "price": 50},
+	{"id": "dark_crystal",   "price": 200},
 ]

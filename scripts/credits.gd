@@ -81,6 +81,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_tree().set_meta("player_name", "Test")
 	get_tree().set_meta("is_playtest", true)
 	get_tree().set_meta("player_gold", 9999)
+	# Give the tester 2 of each enemy ingredient plus a gold dust
+	# and dark crystal for crafting a dungeon immediately!
+	get_tree().set_meta("starting_bag_items", [
+		{"id": "slime_essence", "level": 1, "count": 2},
+		{"id": "bone_fragment", "level": 1, "count": 2},
+		{"id": "shadow_wisp", "level": 1, "count": 2},
+		{"id": "gold_dust", "level": 1, "count": 1},
+		{"id": "dark_crystal", "level": 1, "count": 1},
+	])
 	$MusicPlayer.stop_song()
 	get_tree().change_scene_to_file("res://scenes/camp.tscn")
 

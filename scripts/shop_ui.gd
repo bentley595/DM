@@ -13,9 +13,10 @@ extends CanvasLayer
 ## that works well, use it again!  Consistency makes code easier to
 ## understand and maintain.
 
-const WeaponData = preload("res://scripts/weapon_data.gd")
-const ArmorData  = preload("res://scripts/armor_data.gd")
-const ShopData   = preload("res://scripts/shop_data.gd")
+const WeaponData     = preload("res://scripts/weapon_data.gd")
+const ArmorData      = preload("res://scripts/armor_data.gd")
+const ShopData       = preload("res://scripts/shop_data.gd")
+const IngredientData = preload("res://scripts/ingredient_data.gd")
 
 # ── Layout ──────────────────────────────────────────────────────
 const PANEL_X: int = 50
@@ -35,10 +36,11 @@ const ITEM_GAP: int = 2
 # Filter tabs
 const TAB_Y: int = PANEL_Y + 16
 const TAB_DEFS: Array = [
-	{"id": "all",    "label": "ALL",    "w": 16},
-	{"id": "melee",  "label": "MELEE",  "w": 24},
-	{"id": "ranged", "label": "RANGED", "w": 28},
-	{"id": "armor",  "label": "ARMOR",  "w": 24},
+	{"id": "all",        "label": "ALL",    "w": 16},
+	{"id": "melee",      "label": "MELEE",  "w": 24},
+	{"id": "ranged",     "label": "RANGED", "w": 28},
+	{"id": "armor",      "label": "ARMOR",  "w": 24},
+	{"id": "ingredient", "label": "INGR",   "w": 20},
 ]
 
 # Info/buy panel (at the bottom)
@@ -56,6 +58,7 @@ const COL_LABEL    := Color(0.75, 0.75, 0.85, 1.0)
 const COL_GOLD     := Color(0.9, 0.75, 0.3, 1.0)
 const COL_DIM      := Color(0.4, 0.4, 0.4, 1.0)
 const COL_ICON     := Color(0.8, 0.75, 0.3, 1.0)
+const COL_INGR     := Color(0.4, 0.8, 0.5, 1.0)    # green — ingredient icons
 const COL_BUY_OK   := Color(0.15, 0.35, 0.15, 1.0)
 const COL_BUY_BORDER := Color(0.3, 0.7, 0.3, 1.0)
 
@@ -207,8 +210,12 @@ func _try_buy(shop_item: Dictionary) -> void:
 	get_tree().set_meta("player_gold", _gold)
 
 	# Add item to inventory bag at Level 1
-	var new_item: Dictionary = {"id": shop_item["id"], "level": 1}
-	_inventory["bag"].append(new_item)
+	# Ingredients stack automatically via add_to_bag!
+	var item_id: String = shop_item["id"]
+	if IngredientData.INGREDIENTS.has(item_id):
+		IngredientData.add_to_bag(_inventory["bag"], item_id)
+	else:
+		_inventory["bag"].append({"id": item_id, "level": 1})
 
 	# Update the camp HUD
 	var camp: Node = get_parent()
@@ -237,6 +244,8 @@ func _get_item_data(id: String) -> Dictionary:
 		return WeaponData.WEAPONS[id]
 	if ArmorData.ARMOR.has(id):
 		return ArmorData.ARMOR[id]
+	if IngredientData.INGREDIENTS.has(id):
+		return IngredientData.INGREDIENTS[id]
 	return {}
 
 
@@ -329,9 +338,10 @@ func _draw_shop_item(r: Rect2, shop_item: Dictionary, selected: bool, mp: Vector
 		border = Color(0.7, 0.7, 0.85, 1.0)
 	_draw_border(int(r.position.x), int(r.position.y), int(r.size.x), int(r.size.y), border)
 
-	# Item icon (7×7)
+	# Item icon (7×7) — ingredients draw green, weapons/armor draw gold
 	var icon: Array = data.get("icon", [])
-	var icon_color: Color = COL_ICON if can_afford else COL_DIM
+	var base_icon_col: Color = COL_INGR if data.get("type", "") == "ingredient" else COL_ICON
+	var icon_color: Color = base_icon_col if can_afford else COL_DIM
 	var ix: int = int(r.position.x) + 2
 	var iy: int = int(r.position.y) + 2
 	for row in range(icon.size()):
