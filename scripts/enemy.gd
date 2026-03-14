@@ -15,7 +15,7 @@ extends Node2D
 ## work on us with zero changes.  That's the beauty of groups —
 ## any node wearing the "targetable" badge gets noticed!
 
-signal died(enemy: Node2D, gold_value: int)
+signal died(enemy: Node2D, gold_value: int, type_name: String)
 
 # ── Pixel art ───────────────────────────────────────────────────
 const PIXEL_SIZE: int = 2
@@ -182,6 +182,11 @@ var is_flashing: bool = false
 var flash_timer: float = 0.0
 var contact_cooldown: float = 0.0
 
+## The type name for this enemy — used by dungeon_manager to track kills.
+## Boss types start with "boss_", so we can check type_name.begins_with("boss_")
+## to know if this was a boss kill!
+var type_name: String = "slime"
+
 
 func _ready() -> void:
 	add_to_group("targetable")
@@ -193,6 +198,7 @@ func setup(type: String, hp_bonus: int = 0) -> void:
 	if not ENEMY_TYPES.has(type):
 		type = "slime"
 	enemy_type = type
+	type_name = type
 	var data: Dictionary = ENEMY_TYPES[type]
 	max_hp = data["hp"] + hp_bonus
 	hp = max_hp
@@ -213,7 +219,7 @@ func hit() -> void:
 	queue_redraw()
 
 	if hp <= 0:
-		emit_signal("died", self, gold_value)
+		emit_signal("died", self, gold_value, type_name)
 		queue_free()
 
 
@@ -241,6 +247,10 @@ func _process(delta: float) -> void:
 	if dist > 2.0:
 		var dir: Vector2 = diff.normalized()
 		position += dir * move_speed * delta
+
+	# Keep enemy inside the room walls (prevents clipping through doors)
+	position.x = clampf(position.x, 16.0, 304.0)
+	position.y = clampf(position.y, 36.0, 158.0)
 
 	# ── Contact damage ──────────────────────────────────────────
 	if dist <= CONTACT_DISTANCE and contact_cooldown <= 0:

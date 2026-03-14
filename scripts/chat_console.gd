@@ -304,6 +304,8 @@ func _execute_command(parts: Array) -> void:
 			_cmd_bend()
 		"unbend":
 			_cmd_unbend()
+		"debug":
+			_cmd_debug()
 		_:
 			_add_message("UNKNOWN COMMAND: /" + cmd, COL_ERROR)
 			_add_message("TYPE /HELP FOR A LIST", COL_ERROR)
@@ -312,14 +314,15 @@ func _execute_command(parts: Array) -> void:
 func _cmd_help() -> void:
 	_add_message("-- COMMANDS --", COL_HELP)
 	_add_message("/GIVE GOLD (AMT) - ADD GOLD", COL_HELP)
-	_add_message("/GIVE (ITEM ID) - ADD ITEM", COL_HELP)
+	_add_message("/GIVE (ITEM) - ADD/UNLOCK ITEM", COL_HELP)
 	_add_message("/SET GOLD (AMT) - SET GOLD", COL_HELP)
 	_add_message("/HEAL - RESTORE HEALTH", COL_HELP)
 	_add_message("/MOMENTUM (AMT) - SET STACKS", COL_HELP)
 	_add_message("/SLOTS (3-6) - SET CRAFT SLOTS", COL_HELP)
-	_add_message("/UNLOCK ALL - UNLOCK BOOTHS", COL_HELP)
+	_add_message("/UNLOCK ALL - UNLOCK ALL", COL_HELP)
 	_add_message("/TP (X) (Y) - TELEPORT", COL_HELP)
 	_add_message("/CLEAR - CLEAR CHAT", COL_HELP)
+	_add_message("/DEBUG - SHOW SCENE INFO", COL_HELP)
 
 
 func _cmd_give(parts: Array) -> void:
@@ -369,11 +372,11 @@ func _cmd_heal() -> void:
 	if not player:
 		_add_message("ERROR: NO PLAYER FOUND", COL_ERROR)
 		return
-	player.health = player.MAX_HEALTH
+	player.health = player._effective_max_hp
 	player.is_dead = false
 	var hud_node: CanvasLayer = _find_hud()
 	if hud_node:
-		hud_node.update_health(player.health, player.MAX_HEALTH)
+		hud_node.update_health(player.health, player._effective_max_hp)
 	_add_message("HEALTH RESTORED!", COL_SUCCESS)
 
 
@@ -396,12 +399,18 @@ func _cmd_momentum(parts: Array) -> void:
 
 
 func _cmd_slots(parts: Array) -> void:
+	## Slots are now earned through milestones (dungeons completed).
+	## This command sets the dungeons_completed stat so the slot count
+	## updates accordingly:  0→3 slots, 2→4, 5→5, 10→6.
 	if parts.size() < 2 or not parts[1].is_valid_int():
 		_add_message("USAGE: /SLOTS (3-6)", COL_ERROR)
 		return
 
 	var count: int = clampi(parts[1].to_int(), 3, 6)
-	get_tree().set_meta("dungeon_slot_count", count)
+	# Map slot count to required dungeon completions:
+	#   3 slots = 0, 4 slots = 2, 5 slots = 5, 6 slots = 10
+	var needed: Dictionary = {3: 0, 4: 2, 5: 5, 6: 10}
+	get_tree().set_meta("stats_dungeons_completed", needed[count])
 	_add_message("DUNGEON SLOTS SET TO " + str(count), COL_SUCCESS)
 
 
@@ -413,8 +422,86 @@ func _cmd_unlock(parts: Array) -> void:
 	get_tree().set_meta("unlocked_forge", true)
 	get_tree().set_meta("unlocked_shop", true)
 	get_tree().set_meta("unlocked_infinite_dungeon", true)
-	_add_message("ALL STATIONS UNLOCKED!", COL_SUCCESS)
+	# Also unlock ALL ingredients!
+	get_tree().set_meta("unlocked_ingredients", IngredientData.INGREDIENTS.keys())
+	_add_message("ALL STATIONS + INGREDIENTS UNLOCKED!", COL_SUCCESS)
 	_add_message("RE-ENTER CAMP TO SEE CHANGES", COL_SYSTEM)
+
+
+func _cmd_debug() -> void:
+	var parent: Node = get_parent()
+	if not parent:
+		_add_message("NO PARENT NODE", COL_ERROR)
+		return
+
+	var lines: Array = []
+
+	lines.append("-- DEBUG REPORT --")
+
+	# List all children of Game and their types/visibility
+	lines.append("SCENE CHILDREN:")
+	for child in parent.get_children():
+		var info: String = "  " + child.name + " (" + child.get_class() + ")"
+		if child is CanvasItem:
+			info += " vis=" + str(child.visible)
+			info += " z=" + str(child.z_index)
+		lines.append(info)
+
+	# Room rendering checks
+	lines.append("-- ROOM RENDERING --")
+	lines.append("GAME HAS _DRAW=" + str(parent.has_method("_draw")))
+	lines.append("GAME HAS _DRAW_ROOM=" + str(parent.has_method("_draw_room")))
+	if parent.has_node("DungeonManager"):
+		var dm: Node = parent.get_node("DungeonManager")
+		lines.append("DM._ROOM_DOORS=" + str(dm._room_doors))
+		lines.append("DM._ROOM_LOCKED=" + str(dm._room_locked))
+		lines.append("DM._ROOM_TYPE=" + str(dm._room_type))
+
+	# Check Background
+	if parent.has_node("Background"):
+		var bg: Node = parent.get_node("Background")
+		lines.append("BACKGROUND: vis=" + str(bg.visible) + " z=" + str(bg.z_index))
+	else:
+		lines.append("BACKGROUND: NOT FOUND")
+
+	# Check DungeonManager
+	if parent.has_node("DungeonManager"):
+		var dm: Node = parent.get_node("DungeonManager")
+		if dm.get("dungeon") != null and not dm.dungeon.is_empty():
+			var rooms: Dictionary = dm.dungeon.get("rooms", {})
+			lines.append("DUNGEON: " + str(rooms.size()) + " ROOMS")
+			lines.append("CURRENT POS: " + str(dm.current_pos))
+			var room = rooms.get(dm.current_pos, {})
+			lines.append("ROOM TYPE: " + str(room.get("type", "?")))
+			lines.append("DOORS: " + str(room.get("doors", {})))
+			lines.append("LOCKED: " + str(dm.doors_locked))
+		else:
+			lines.append("DUNGEON: NOT GENERATED")
+	else:
+		lines.append("DUNGEON MANAGER: NOT FOUND!")
+
+	# Check Minimap
+	var hud: CanvasLayer = _find_hud()
+	if hud and hud.has_node("Minimap"):
+		lines.append("MINIMAP: FOUND")
+	else:
+		lines.append("MINIMAP: NOT FOUND")
+
+	# Check Player
+	var player: Node2D = _find_player()
+	if player:
+		lines.append("PLAYER: pos=" + str(player.position) + " hp=" + str(player.health))
+	else:
+		lines.append("PLAYER: NOT FOUND")
+
+	# Show in console
+	for line in lines:
+		_add_message(line, COL_HELP)
+
+	# Copy to clipboard
+	var report: String = "\n".join(lines)
+	DisplayServer.clipboard_set(report)
+	_add_message("COPIED TO CLIPBOARD!", COL_SUCCESS)
 
 
 func _cmd_bend() -> void:
@@ -491,15 +578,18 @@ func _give_item(item_id: String) -> void:
 		_add_message("ADDED " + aname.to_upper() + " TO BAG", COL_SUCCESS)
 		return
 
-	# Check if it's an ingredient
+	# Check if it's an ingredient — ingredients are now permanent unlocks!
+	# Instead of adding to the bag, we add to the unlocked_ingredients list.
 	if IngredientData.INGREDIENTS.has(item_id):
-		var player: Node2D = _find_player()
-		if not player:
-			_add_message("ERROR: NO PLAYER FOUND", COL_ERROR)
-			return
-		IngredientData.add_to_bag(player.inventory["bag"], item_id)
-		var iname: String = IngredientData.INGREDIENTS[item_id]["name"]
-		_add_message("ADDED " + iname.to_upper() + " TO BAG", COL_SUCCESS)
+		var unlocked: Array = get_tree().get_meta("unlocked_ingredients", [])
+		if item_id in unlocked:
+			var iname: String = IngredientData.INGREDIENTS[item_id]["name"]
+			_add_message(iname.to_upper() + " ALREADY UNLOCKED", COL_SYSTEM)
+		else:
+			unlocked.append(item_id)
+			get_tree().set_meta("unlocked_ingredients", unlocked)
+			var iname: String = IngredientData.INGREDIENTS[item_id]["name"]
+			_add_message("UNLOCKED " + iname.to_upper() + "!", COL_SUCCESS)
 		return
 
 	# Not found — show available IDs

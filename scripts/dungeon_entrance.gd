@@ -78,7 +78,7 @@ func on_interact() -> void:
 		var player: Node2D = _find_player()
 		var gold: int = get_tree().get_meta("player_gold", 0)
 		if player:
-			camp.get_node("DungeonCraftUI").open(player.inventory, gold)
+			camp.get_node("DungeonCraftUI").open(gold)
 
 
 func _draw_label(text: String, x_offset: int, y_offset: int) -> void:

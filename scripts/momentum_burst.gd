@@ -1,11 +1,12 @@
 extends Node2D
-## Visual effects for momentum milestones and momentum loss.
+## Visual effects for momentum milestones, momentum loss, and healing.
 ##
-## Two effects live here:
+## Three effects live here:
 ##   trigger()       — expanding ring when a milestone is hit (every 10 stacks)
 ##   trigger_break() — shattered ring when the player takes damage and loses all stacks
+##   trigger_heal()  — contracting ring when the player drinks a potion
 ##
-## Both use _draw() with queue_redraw() each frame so they animate smoothly.
+## All use _draw() with queue_redraw() each frame so they animate smoothly.
 
 # ── Expanding ring (milestone hit) ───────────────────────────────────
 
@@ -62,6 +63,31 @@ func trigger_break(color: Color, stacks: int) -> void:
 	queue_redraw()
 
 
+# ── Healing ring (potion) ──────────────────────────────────────────────
+
+## How long the heal ring animation lasts.
+const HEAL_DURATION: float = 0.4
+
+## The ring starts at this radius and shrinks to nearly zero.
+## This creates a "gathering inward" feel — like energy flowing INTO
+## the player, which is the opposite of the expanding momentum ring.
+const HEAL_START_RADIUS: float = 24.0
+
+var _heal_active: bool  = false
+var _heal_timer:  float = 0.0
+var _heal_color:  Color = Color.GREEN
+
+
+func trigger_heal(color: Color) -> void:
+	## Contracting ring — plays when the player drinks a potion.
+	## The ring starts big and shrinks to nothing, like healing
+	## energy being absorbed into the player's body.
+	_heal_color  = color
+	_heal_timer  = HEAL_DURATION
+	_heal_active = true
+	queue_redraw()
+
+
 # ── Shared update / draw ──────────────────────────────────────────────
 
 func _process(delta: float) -> void:
@@ -77,6 +103,13 @@ func _process(delta: float) -> void:
 		if _break_timer <= 0.0:
 			_break_active = false
 			_break_timer  = 0.0
+		queue_redraw()
+
+	if _heal_active:
+		_heal_timer -= delta
+		if _heal_timer <= 0.0:
+			_heal_active = false
+			_heal_timer  = 0.0
 		queue_redraw()
 
 
@@ -118,3 +151,18 @@ func _draw() -> void:
 				Color(_break_color.r, _break_color.g, _break_color.b, alpha),
 				LINE_WIDTH
 			)
+
+	# ── Contracting heal ring ───────────────────────────────────────
+	# The opposite of the expanding ring!  It starts big and shrinks
+	# to the player's center.  lerpf goes from HEAL_START_RADIUS
+	# down to MIN_RADIUS as progress goes 0 -> 1.
+	if _heal_active:
+		var progress: float = 1.0 - (_heal_timer / HEAL_DURATION)
+		var radius: float = lerpf(HEAL_START_RADIUS, MIN_RADIUS, progress)
+		var alpha: float = 1.0 - progress * 0.6  # fades slower so it's visible
+		draw_arc(
+			Vector2.ZERO, radius,
+			0.0, TAU, 32,
+			Color(_heal_color.r, _heal_color.g, _heal_color.b, alpha),
+			LINE_WIDTH
+		)

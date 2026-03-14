@@ -1,17 +1,22 @@
 extends RefCounted
 ## All dungeon ingredient definitions for PIXEL DUNGEON.
 ##
-## Ingredients are items the player collects and places into dungeon
-## crafting slots.  Each one affects what kind of dungeon gets generated —
-## what enemies spawn, how many rooms there are, and what rewards you get.
+## Ingredients are PERMANENT UNLOCKS — once you earn one, you can use
+## it unlimited times in the crafting UI.  You unlock new ingredients
+## by achieving specific goals during dungeon runs.
 ##
 ## CATEGORIES:
-##   "enemy"    — determines WHAT enemies spawn in the dungeon
-##   "modifier" — changes difficulty or rewards (more gold, harder, etc.)
-##   "room"     — affects room count or adds special rooms
+##   "enemy"     — determines WHAT enemies spawn in the dungeon
+##   "modifier"  — changes difficulty or rewards (more gold, harder, etc.)
+##   "room"      — affects room count or adds special rooms
+##   "challenge" — makes the PLAYER weaker in exchange for more gold
 ##
-## This follows the same pattern as weapon_data.gd and armor_data.gd:
-## a pure data file with no node, no _ready(), no _process().
+## Each ingredient has an "unlock" field describing how to earn it:
+##   {"type": "default"}                        — unlocked from the start
+##   {"type": "dungeons_completed", "count": 3} — complete 3 dungeon runs
+##   {"type": "enemies_killed_in_run", "count": 5} — kill 5 in one run
+##   etc.
+##
 ## Icons are 7x7 grids (0 = transparent, 1 = colored pixel).
 
 const INGREDIENTS: Dictionary = {
@@ -26,6 +31,7 @@ const INGREDIENTS: Dictionary = {
 		"category": "enemy",
 		"description": "SPAWNS SLIMES",
 		"enemy_type": "slime",
+		"unlock": {"type": "default"},
 		"icon": [
 			[0, 0, 0, 0, 0, 0, 0],
 			[0, 0, 1, 1, 1, 0, 0],
@@ -43,6 +49,8 @@ const INGREDIENTS: Dictionary = {
 		"category": "enemy",
 		"description": "SPAWNS SKELETONS",
 		"enemy_type": "skeleton",
+		"unlock": {"type": "enemies_killed_in_run", "count": 5,
+			"hint": "KILL 5 IN ONE RUN"},
 		"icon": [
 			[0, 0, 0, 1, 0, 0, 0],
 			[0, 0, 0, 1, 0, 0, 0],
@@ -60,6 +68,8 @@ const INGREDIENTS: Dictionary = {
 		"category": "enemy",
 		"description": "SPAWNS GHOSTS",
 		"enemy_type": "ghost",
+		"unlock": {"type": "dungeons_completed", "count": 1,
+			"hint": "COMPLETE 1 DUNGEON"},
 		"icon": [
 			[0, 0, 1, 1, 1, 0, 0],
 			[0, 1, 0, 0, 0, 1, 0],
@@ -80,6 +90,8 @@ const INGREDIENTS: Dictionary = {
 		"category": "modifier",
 		"description": "+50 PERCENT GOLD",
 		"gold_multiplier": 1.5,
+		"unlock": {"type": "total_gold_earned", "count": 100,
+			"hint": "EARN 100 GOLD TOTAL"},
 		"icon": [
 			[0, 0, 0, 1, 0, 0, 0],
 			[0, 0, 1, 0, 1, 0, 0],
@@ -97,6 +109,8 @@ const INGREDIENTS: Dictionary = {
 		"category": "modifier",
 		"description": "ENEMIES +2 HP",
 		"enemy_hp_bonus": 2,
+		"unlock": {"type": "rooms_cleared_in_run", "count": 5,
+			"hint": "CLEAR 5 ROOMS IN ONE RUN"},
 		"icon": [
 			[0, 0, 0, 0, 0, 0, 0],
 			[0, 1, 1, 1, 1, 1, 0],
@@ -114,6 +128,8 @@ const INGREDIENTS: Dictionary = {
 		"category": "modifier",
 		"description": "BETTER LOOT",
 		"loot_bonus": true,
+		"unlock": {"type": "dungeons_completed", "count": 3,
+			"hint": "COMPLETE 3 DUNGEONS"},
 		"icon": [
 			[0, 0, 0, 0, 0, 0, 0],
 			[0, 1, 0, 0, 0, 1, 0],
@@ -134,6 +150,8 @@ const INGREDIENTS: Dictionary = {
 		"category": "room",
 		"description": "+2 ROOMS",
 		"extra_rooms": 2,
+		"unlock": {"type": "dungeons_completed_no_damage", "count": 1,
+			"hint": "COMPLETE A DUNGEON DAMAGELESS"},
 		"icon": [
 			[1, 1, 1, 0, 1, 1, 1],
 			[1, 0, 1, 0, 1, 0, 1],
@@ -151,6 +169,8 @@ const INGREDIENTS: Dictionary = {
 		"category": "room",
 		"description": "ADDS BOSS ROOM",
 		"boss_room": true,
+		"unlock": {"type": "bosses_defeated", "count": 1,
+			"hint": "DEFEAT A BOSS"},
 		"icon": [
 			[0, 0, 0, 1, 0, 0, 0],
 			[0, 0, 1, 1, 1, 0, 0],
@@ -161,52 +181,171 @@ const INGREDIENTS: Dictionary = {
 			[1, 1, 1, 1, 1, 1, 1],
 		]
 	},
+
+	# ── CHALLENGE INGREDIENTS ────────────────────────────────────
+	# These make the dungeon HARDER but reward you with more gold.
+	# It's a risk-vs-reward trade: take on the challenge for bigger
+	# payouts!  Each one debuffs the player in some way and adds a
+	# gold multiplier to compensate.
+
+	"curse_of_frailty": {
+		"name": "Frailty",
+		"type": "ingredient",
+		"category": "challenge",
+		"description": "HALF HP, GOLD X1.5",
+		"player_hp_multiplier": 0.5,
+		"gold_multiplier": 1.5,
+		"unlock": {"type": "dungeons_completed", "count": 5,
+			"hint": "COMPLETE 5 DUNGEONS"},
+		"icon": [
+			[0, 0, 1, 1, 1, 0, 0],
+			[0, 1, 0, 0, 0, 1, 0],
+			[0, 1, 0, 1, 0, 1, 0],
+			[0, 0, 1, 0, 1, 0, 0],
+			[0, 0, 0, 1, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 1, 0, 0, 0],
+		]
+	},
+
+	"leaden_boots": {
+		"name": "Lead Boots",
+		"type": "ingredient",
+		"category": "challenge",
+		"description": "-25 PERCENT SPEED, GOLD X1.3",
+		"player_speed_multiplier": 0.75,
+		"gold_multiplier": 1.3,
+		"unlock": {"type": "total_gold_earned", "count": 500,
+			"hint": "EARN 500 GOLD TOTAL"},
+		"icon": [
+			[0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 1, 0, 1, 0, 0],
+			[0, 0, 1, 0, 1, 0, 0],
+			[0, 1, 1, 0, 1, 1, 0],
+			[0, 1, 1, 0, 1, 1, 0],
+			[1, 1, 1, 0, 1, 1, 1],
+			[1, 1, 1, 0, 1, 1, 1],
+		]
+	},
+
+	"eternal_night": {
+		"name": "Darkness",
+		"type": "ingredient",
+		"category": "challenge",
+		"description": "SPOTLIGHT ONLY, GOLD X1.2",
+		"darkness": true,
+		"gold_multiplier": 1.2,
+		"unlock": {"type": "enemies_killed_total", "count": 50,
+			"hint": "KILL 50 ENEMIES TOTAL"},
+		"icon": [
+			[1, 1, 1, 1, 1, 1, 1],
+			[1, 0, 0, 0, 0, 0, 1],
+			[1, 0, 1, 0, 1, 0, 1],
+			[1, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 1],
+			[1, 0, 0, 0, 0, 0, 1],
+			[1, 1, 1, 1, 1, 1, 1],
+		]
+	},
+
+	"swarm": {
+		"name": "Swarm",
+		"type": "ingredient",
+		"category": "challenge",
+		"description": "2X ENEMIES, GOLD X1.5",
+		"enemy_count_multiplier": 2,
+		"gold_multiplier": 1.5,
+		"unlock": {"type": "bosses_defeated", "count": 3,
+			"hint": "DEFEAT 3 BOSSES"},
+		"icon": [
+			[1, 0, 1, 0, 1, 0, 1],
+			[0, 1, 0, 1, 0, 1, 0],
+			[1, 0, 1, 0, 1, 0, 1],
+			[0, 1, 0, 1, 0, 1, 0],
+			[1, 0, 1, 0, 1, 0, 1],
+			[0, 1, 0, 1, 0, 1, 0],
+			[1, 0, 1, 0, 1, 0, 1],
+		]
+	},
+
+	# ── DUNGEON CRAWLER INGREDIENTS ──────────────────────────────
+	# These ingredients work great with the room-based dungeon crawler.
+	# They were added alongside the INGREDIENT room type, where you
+	# can discover locked ingredients during dungeon exploration!
+
+	"healing_herb": {
+		"name": "Healing Herb",
+		"type": "ingredient",
+		"category": "modifier",
+		"description": "HEAL 20 HP PER ROOM",
+		"heal_per_room": 20,
+		"unlock": {"type": "dungeons_completed", "count": 2,
+			"hint": "CLEAR 2 DUNGEONS"},
+		"icon": [
+			[0, 0, 1, 1, 1, 0, 0],
+			[0, 1, 0, 1, 0, 1, 0],
+			[0, 1, 0, 1, 0, 1, 0],
+			[0, 0, 0, 1, 0, 0, 0],
+			[0, 0, 0, 1, 0, 0, 0],
+			[0, 0, 1, 0, 1, 0, 0],
+			[0, 0, 0, 1, 0, 0, 0],
+		]
+	},
+
+	"map_scroll": {
+		"name": "Map Scroll",
+		"type": "ingredient",
+		"category": "room",
+		"description": "REVEALS MINIMAP",
+		"reveal_map": true,
+		"unlock": {"type": "total_gold_earned", "count": 250,
+			"hint": "EARN 250G TOTAL"},
+		"icon": [
+			[0, 1, 1, 1, 1, 1, 0],
+			[1, 0, 0, 0, 0, 0, 1],
+			[1, 0, 1, 1, 1, 0, 1],
+			[1, 0, 0, 0, 0, 0, 1],
+			[1, 0, 1, 1, 1, 0, 1],
+			[1, 0, 0, 0, 0, 0, 1],
+			[0, 1, 1, 1, 1, 1, 0],
+		]
+	},
+
+	"treasure_map": {
+		"name": "Treasure Map",
+		"type": "ingredient",
+		"category": "room",
+		"description": "+2 TREASURE ROOMS",
+		"extra_treasure_rooms": 2,
+		"unlock": {"type": "enemies_killed_total", "count": 25,
+			"hint": "KILL 25 TOTAL"},
+		"icon": [
+			[1, 1, 1, 1, 1, 1, 0],
+			[1, 0, 0, 0, 0, 1, 0],
+			[1, 0, 1, 0, 1, 1, 0],
+			[1, 0, 0, 1, 0, 1, 0],
+			[1, 0, 1, 0, 1, 1, 0],
+			[1, 0, 0, 0, 0, 1, 0],
+			[1, 1, 1, 1, 1, 1, 0],
+		]
+	},
+
+	"phoenix_feather": {
+		"name": "Phoenix Feather",
+		"type": "ingredient",
+		"category": "modifier",
+		"description": "REVIVE ONCE IF YOU DIE",
+		"has_revive": true,
+		"unlock": {"type": "dungeons_completed", "count": 7,
+			"hint": "CLEAR 7 DUNGEONS"},
+		"icon": [
+			[0, 0, 0, 1, 0, 0, 0],
+			[0, 0, 1, 1, 1, 0, 0],
+			[0, 1, 1, 0, 1, 1, 0],
+			[0, 1, 0, 1, 0, 1, 0],
+			[0, 0, 1, 1, 1, 0, 0],
+			[0, 0, 0, 1, 0, 0, 0],
+			[0, 0, 0, 1, 0, 0, 0],
+		]
+	},
 }
-
-
-# ── Stacking ──────────────────────────────────────────────────────
-## Ingredients can stack up to MAX_STACK in a single bag slot.
-## This saves space — instead of 6 separate "slime_essence" entries,
-## you get one entry with count=6.
-##
-## Key concept: **stack-aware helpers**.
-## Every place that adds or removes ingredients from the bag should
-## use these functions instead of raw append/remove_at.  That way
-## stacking logic lives in ONE place, not scattered across files!
-
-const MAX_STACK: int = 10
-
-
-## Adds count copies of an ingredient to the bag, stacking with
-## existing entries when possible.  If a stack is full (20), the
-## remainder goes into a new stack.
-static func add_to_bag(bag: Array, item_id: String, count: int = 1) -> void:
-	# Try to stack with an existing entry first
-	for entry in bag:
-		if entry.get("id") == item_id and INGREDIENTS.has(item_id):
-			var current: int = entry.get("count", 1)
-			var space: int = MAX_STACK - current
-			if space > 0:
-				var add: int = mini(count, space)
-				entry["count"] = current + add
-				count -= add
-				if count <= 0:
-					return
-
-	# Remaining count goes into new stack(s)
-	while count > 0:
-		var stack: int = mini(count, MAX_STACK)
-		bag.append({"id": item_id, "level": 1, "count": stack})
-		count -= stack
-
-
-## Removes one ingredient from a bag entry at the given index.
-## If the stack has more than 1, it decrements the count.
-## If the stack has exactly 1, it removes the entry entirely.
-static func remove_one(bag: Array, bag_index: int) -> void:
-	var entry: Dictionary = bag[bag_index]
-	var c: int = entry.get("count", 1)
-	if c <= 1:
-		bag.remove_at(bag_index)
-	else:
-		entry["count"] = c - 1

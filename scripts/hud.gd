@@ -21,6 +21,7 @@ extends CanvasLayer
 # $HealthBar is the same as get_node("HealthBar").
 
 @onready var health_bar: Node2D = $HealthBar
+@onready var potion_bar: Node2D = $PotionBar if has_node("PotionBar") else null
 @onready var momentum_bar: Node2D = $MomentumBar
 @onready var soul_bar: Node2D = $SoulBar
 @onready var roll_cooldown: Node2D = $RollCooldown
@@ -33,6 +34,8 @@ func _ready() -> void:
 	## any gameplay systems are connected.  When combat is added later,
 	## these will be replaced with real values.
 	health_bar.set_value(100.0, 100.0)
+	if potion_bar:
+		potion_bar.set_value(0.0, 100.0)
 	momentum_bar.set_value(0.0, 100.0)
 	soul_bar.set_value(0.0, 100.0)
 	roll_cooldown.set_cooldown(1.0)
@@ -45,6 +48,11 @@ func _ready() -> void:
 
 func update_health(current: float, max_val: float) -> void:
 	health_bar.set_value(current, max_val)
+
+
+func update_potion(current: float, max_val: float) -> void:
+	if potion_bar:
+		potion_bar.set_value(current, max_val)
 
 
 func update_momentum(current: float, max_val: float) -> void:

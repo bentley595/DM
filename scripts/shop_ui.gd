@@ -16,7 +16,6 @@ extends CanvasLayer
 const WeaponData     = preload("res://scripts/weapon_data.gd")
 const ArmorData      = preload("res://scripts/armor_data.gd")
 const ShopData       = preload("res://scripts/shop_data.gd")
-const IngredientData = preload("res://scripts/ingredient_data.gd")
 
 # ── Layout ──────────────────────────────────────────────────────
 const PANEL_X: int = 50
@@ -40,7 +39,6 @@ const TAB_DEFS: Array = [
 	{"id": "melee",      "label": "MELEE",  "w": 24},
 	{"id": "ranged",     "label": "RANGED", "w": 28},
 	{"id": "armor",      "label": "ARMOR",  "w": 24},
-	{"id": "ingredient", "label": "INGR",   "w": 20},
 ]
 
 # Info/buy panel (at the bottom)
@@ -210,12 +208,7 @@ func _try_buy(shop_item: Dictionary) -> void:
 	get_tree().set_meta("player_gold", _gold)
 
 	# Add item to inventory bag at Level 1
-	# Ingredients stack automatically via add_to_bag!
-	var item_id: String = shop_item["id"]
-	if IngredientData.INGREDIENTS.has(item_id):
-		IngredientData.add_to_bag(_inventory["bag"], item_id)
-	else:
-		_inventory["bag"].append({"id": item_id, "level": 1})
+	_inventory["bag"].append({"id": shop_item["id"], "level": 1})
 
 	# Update the camp HUD
 	var camp: Node = get_parent()
@@ -244,8 +237,6 @@ func _get_item_data(id: String) -> Dictionary:
 		return WeaponData.WEAPONS[id]
 	if ArmorData.ARMOR.has(id):
 		return ArmorData.ARMOR[id]
-	if IngredientData.INGREDIENTS.has(id):
-		return IngredientData.INGREDIENTS[id]
 	return {}
 
 
@@ -338,9 +329,9 @@ func _draw_shop_item(r: Rect2, shop_item: Dictionary, selected: bool, mp: Vector
 		border = Color(0.7, 0.7, 0.85, 1.0)
 	_draw_border(int(r.position.x), int(r.position.y), int(r.size.x), int(r.size.y), border)
 
-	# Item icon (7×7) — ingredients draw green, weapons/armor draw gold
+	# Item icon (7×7)
 	var icon: Array = data.get("icon", [])
-	var base_icon_col: Color = COL_INGR if data.get("type", "") == "ingredient" else COL_ICON
+	var base_icon_col: Color = COL_ICON
 	var icon_color: Color = base_icon_col if can_afford else COL_DIM
 	var ix: int = int(r.position.x) + 2
 	var iy: int = int(r.position.y) + 2

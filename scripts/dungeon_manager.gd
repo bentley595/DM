@@ -1,95 +1,113 @@
 extends Node
-## Dungeon Manager — generates rooms, spawns enemies, tracks progress.
+## Dungeon Manager — room-based dungeon crawler!
 ##
-## Key concept: **procedural generation from a recipe**.
-## Instead of hand-designing each dungeon, we use a "recipe" Dictionary
-## to randomly generate rooms of enemies.  The recipe comes from the
-## crafting UI — the player chose WHAT to fight by placing ingredients.
-## This means every dungeon run is different!
+## Key concept: **dungeon crawling vs wave rushing**.
+## Instead of spawning waves of enemies in one arena, the dungeon is
+## a MAP of connected rooms.  The player explores room by room, walking
+## through doors to discover what's behind them.  Some rooms have enemies,
+## some have treasure, some are empty rest stops, and the final room has
+## the boss (if the recipe includes one).
 ##
-## The dungeon is a sequence of rooms.  Each room spawns a wave of
-## enemies.  Kill them all to advance to the next room.  Clear all
-## rooms to complete the dungeon and earn gold!
+## The flow:
+##   1. Generate a random map of connected rooms
+##   2. Player starts in a safe "start" room
+##   3. Walk to a door opening → teleport to the next room
+##   4. Combat rooms LOCK their doors until all enemies are dead
+##   5. Clear the goal room (furthest from start) to win!
 ##
-## Key concept: **runtime node creation**.
-## Enemies don't exist in the scene file — we create them from code
-## using Node2D.new() + set_script(), just like projectiles in player.gd.
-## This lets us spawn different numbers and types each run!
+## The recipe system from the crafting UI still controls everything:
+## enemy types, room count, boss, gold multiplier, challenges, etc.
+## The only difference is HOW the rooms are structured — as a map
+## instead of sequential waves.
 
 const EnemyScript = preload("res://scripts/enemy.gd")
+const ProjectileScript = preload("res://scripts/projectile.gd")
 const IngredientData = preload("res://scripts/ingredient_data.gd")
 const BitmapLabelScript = preload("res://scripts/bitmap_label.gd")
+const DungeonGen = preload("res://scripts/dungeon_generator.gd")
+const HealthPickupScript = preload("res://scripts/health_pickup.gd")
 
-# ── Loot drops ────────────────────────────────────────────────────
-## After completing a dungeon, the player gets random ingredient drops.
-## This is how players get MORE ingredients without needing the shop!
-## Enemy ingredients drop based on what you fought, plus a chance
-## for modifier/room ingredients as bonus loot.
-const BASE_DROPS: int = 2        ## Minimum ingredients earned per run
-const BONUS_DROP_CHANCE: float = 0.4  ## 40% chance for an extra drop
-const MODIFIER_IDS: Array = ["gold_dust", "iron_chunk", "lucky_clover", "stone_brick", "dark_crystal"]
+# ── Room geometry ────────────────────────────────────────────────
+## These match the player's movement bounds exactly.
+## The room renderer draws walls just outside these bounds.
+const PLAY_LEFT: float = 16.0
+const PLAY_RIGHT: float = 304.0
+const PLAY_TOP: float = 36.0
+const PLAY_BOTTOM: float = 158.0
 
-# ── Spawn boundaries ──────────────────────────────────────────────
-## Enemies spawn at the edges of the play area so they walk in
-## from different directions.  These match the player's movement bounds.
-const SPAWN_LEFT:   float = 20.0
-const SPAWN_RIGHT:  float = 300.0
-const SPAWN_TOP:    float = 40.0
-const SPAWN_BOTTOM: float = 155.0
+# ── Door detection ───────────────────────────────────────────────
+## The center of the door openings on each wall.
+const DOOR_CENTER_X: float = 160.0
+const DOOR_CENTER_Y: float = 97.0
+
+## Half the door width — used to check if the player is lined up.
+## Door is 32px wide, so player must be within ±16px of center.
+const DOOR_HALF: float = 16.0
+
+## How close to the wall the player must be to trigger a door.
+## At 2px, they're basically touching the wall.
+const DOOR_TRIGGER: float = 2.0
 
 # ── Timing ───────────────────────────────────────────────────────
-## Pause between rooms — gives the player a moment to breathe.
-const BETWEEN_ROOM_DELAY: float = 2.0
+## After going through a door, ignore door triggers for this long.
+## Prevents instantly bouncing back if the player is still holding
+## the movement key when they arrive in the new room.
+const TRANSITION_COOLDOWN: float = 0.3
 
-## Brief countdown before the first room starts.
-const FIRST_ROOM_DELAY: float = 1.5
-
-## Delay before returning to camp after dungeon completion.
+## How long to wait before returning to camp after completing the dungeon.
 const COMPLETE_DELAY: float = 2.5
 
-# ── State ────────────────────────────────────────────────────────
-## The recipe Dictionary describing what this dungeon contains.
-## Set by the crafting UI, read from SceneTree metadata.
+# ── Dungeon state ────────────────────────────────────────────────
+## The recipe Dictionary from the crafting UI.
 var recipe: Dictionary = {}
 
-## Total number of rooms in this dungeon run.
-var room_count: int = 3
+## The generated dungeon map (from DungeonGenerator).
+## Contains "rooms" (Dictionary of Vector2i → room data),
+## "start_pos" and "goal_pos" (Vector2i).
+var dungeon: Dictionary = {}
 
-## Which room we're currently on (1-indexed for display).
-var current_room: int = 0
+## The grid position of the room the player is currently in.
+var current_pos: Vector2i = Vector2i.ZERO
 
-## How many enemies are still alive in the current room.
+## How many enemies are alive in the current room.
 var enemies_alive: int = 0
 
-## Gold earned so far this run (awarded on completion).
+## Total gold earned this dungeon run (awarded on completion).
 var total_gold_earned: int = 0
 
 ## True when the dungeon is done and we're transitioning back.
 var is_complete: bool = false
 
-## True during the pause between rooms.
-var is_between_rooms: bool = false
+## True while changing rooms (prevents input during transition).
+var is_transitioning: bool = false
 
-## Countdown timer for the between-room pause.
-var between_room_timer: float = 0.0
+## True when the current room's doors are locked (combat in progress).
+var doors_locked: bool = false
 
-## HUD bitmap label showing "ROOM 1/5" at the top center of the screen.
-## Uses bitmap_label.gd instead of Label for crisp pixel-art text.
-var _room_label: Node2D
+## Countdown to prevent instant door re-triggers after transitioning.
+var _transition_cooldown: float = 0.0
 
-## HUD bitmap label showing status messages like "ROOM CLEARED!" in the
-## center of the screen.  These appear briefly then disappear.
+# ── UI nodes ─────────────────────────────────────────────────────
+var _minimap: Node2D
+
+# ── Room rendering (inline — no separate script) ────────────────
+## Current room's door openings and visual state.
+## game.gd calls draw_room() during its _draw() to render this.
+var _room_doors := {"up": false, "down": false, "left": false, "right": false}
+var _room_locked := false
+var _room_type := 1
 var _status_label: Node2D
-
-## Timer for hiding the status message after a few seconds.
 var _status_timer: float = 0.0
+
+# ── Per-run stats ────────────────────────────────────────────────
+## Same stat tracking as before — used for ingredient unlock checks.
+var _enemies_killed_this_run: int = 0
+var _rooms_cleared_this_run: int = 0
+var _bosses_defeated_this_run: int = 0
 
 
 func _ready() -> void:
-	# ── Read the recipe from metadata ──────────────────────────
-	# The crafting UI saves the recipe before transitioning here.
-	# If there's no recipe (direct scene entry, testing), we fall
-	# back to a safe default: 3 rooms of slimes.
+	# ── Read the recipe ───────────────────────────────────────
 	recipe = get_tree().get_meta("dungeon_recipe", {})
 	if recipe.is_empty():
 		recipe = {
@@ -97,52 +115,69 @@ func _ready() -> void:
 			"room_count": 3,
 			"enemy_hp_bonus": 0,
 			"gold_multiplier": 1.0,
-			"loot_bonus": false,
 			"has_boss": false,
+			"player_hp_multiplier": 1.0,
+			"player_speed_multiplier": 1.0,
+			"enemy_count_multiplier": 1,
+			"darkness": false,
 		}
 
-	room_count = recipe.get("room_count", 3)
+	# Reset per-run damage tracking (for "no damage" unlock).
+	get_tree().set_meta("stats_took_damage_this_run", false)
 
-	# Remove the training dummy — we're in dungeon mode now!
-	# The training dummy is great for testing in camp, but the
-	# dungeon has real enemies to fight.
 	var game: Node = get_parent()
+
+	# Remove the training dummy — it's only for camp practice.
 	if game.has_node("TrainingDummy"):
 		game.get_node("TrainingDummy").queue_free()
 
-	# Create HUD elements for the room counter and status messages.
+	# Remove the Background ColorRect entirely.  The room renderer
+	# draws its own dark void, and removing (not just hiding) the
+	# ColorRect avoids ANY layering conflicts between Control nodes
+	# and Node2D drawing.  We hide it first (immediate) because
+	# queue_free() is deferred and it might render for one more frame.
+	if game.has_node("Background"):
+		var bg: Node = game.get_node("Background")
+		bg.visible = false
+		bg.queue_free()
+
+	# ── Generate the dungeon map ──────────────────────────────
+	# room_count from recipe scales the dungeon size.  We multiply
+	# by a big factor so even the default recipe gives a sprawling
+	# 10x10-ish grid of rooms to explore.
+	var total_rooms: int = (recipe.get("room_count", 3) + 4) * 3
+	var has_boss: bool = recipe.get("has_boss", false)
+	dungeon = DungeonGen.generate(total_rooms, has_boss)
+
+	# Place special room types (ingredient room, extra treasures)
+	_place_special_rooms()
+
+	# ── Apply recipe-based map effects ────────────────────────
+	# Map Scroll: reveal the entire minimap from the start!
+	if recipe.get("reveal_map", false):
+		for pos in dungeon["rooms"]:
+			dungeon["rooms"][pos]["explored"] = true
+
+	# Phoenix Feather: set a metadata flag the player can check
+	if recipe.get("has_revive", false):
+		get_tree().set_meta("dungeon_has_revive", true)
+
+	_minimap = game.get_node("HUD/Minimap")
+	_minimap.setup(dungeon)
+
+	# ── Create HUD labels ────────────────────────────────────
 	_create_hud_labels()
 
-	# Brief pause before the action starts — lets the player orient.
-	_show_status("GET READY!")
-	is_between_rooms = true
-	between_room_timer = FIRST_ROOM_DELAY
+	# ── Enter the start room ─────────────────────────────────
+	_enter_room(dungeon["start_pos"], "")
+	_show_status("EXPLORE THE DUNGEON!")
 
 
-## Creates bitmap label nodes on the HUD CanvasLayer for room progress
-## and status messages.
-##
-## Key concept: **bitmap labels vs. Label nodes**.
-## Godot's built-in Label uses a vector font (Pixelify Sans) that gets
-## rasterized at runtime.  At the game's tiny 320×180 viewport with 4×
-## scaling, vector text can look blurry or misaligned.  Bitmap labels
-## draw each letter as a grid of individual pixels — always perfectly
-## crisp, just like classic NES/Game Boy text!
+## Creates bitmap labels on the HUD for status messages.
 func _create_hud_labels() -> void:
 	var hud: CanvasLayer = get_parent().get_node("HUD")
 
-	# Room counter (top center) — e.g. "ROOM 1/5"
-	# Position is the CENTER of the text (bitmap_label auto-centers).
-	# pixel_size=2 makes each font pixel 2×2, so letters are 6×10.
-	_room_label = Node2D.new()
-	_room_label.set_script(BitmapLabelScript)
-	_room_label.position = Vector2(160, 3)
-	_room_label.text_color = Color(0.8, 0.8, 0.9, 1.0)
-	_room_label.pixel_size = 1
-	hud.add_child(_room_label)
-
-	# Status message (center of screen) — "ROOM CLEARED!", etc.
-	# pixel_size=2 so it's big and easy to read mid-combat.
+	# Status label — center of screen, shows room type and events.
 	_status_label = Node2D.new()
 	_status_label.set_script(BitmapLabelScript)
 	_status_label.position = Vector2(160, 85)
@@ -151,179 +186,403 @@ func _create_hud_labels() -> void:
 	hud.add_child(_status_label)
 
 
-## Starts the next room — spawns enemies and updates the HUD.
-func _start_room() -> void:
-	current_room += 1
-	is_between_rooms = false
-	_status_label.text = ""
+## Transitions the player into a room.
+##
+## This is the core of the dungeon crawler!  Every time you walk through
+## a door, this function:
+##   1. Marks the room as explored (for the minimap)
+##   2. Positions the player at the opposite door
+##   3. Updates the room renderer (walls/doors/lock state)
+##   4. Spawns enemies or awards treasure based on room type
+func _enter_room(pos: Vector2i, from_dir: String) -> void:
+	current_pos = pos
+	var room: Dictionary = dungeon["rooms"][pos]
+	room["explored"] = true
 
-	# Update room counter on the HUD.
-	_room_label.text = "ROOM " + str(current_room) + "/" + str(room_count)
+	# ── Check if this room needs combat ───────────────────────
+	var is_combat: bool = (room["type"] == DungeonGen.COMBAT or room["type"] == DungeonGen.BOSS)
+	var should_lock: bool = is_combat and not room["cleared"]
+	doors_locked = should_lock
 
-	# ── Calculate enemy count ──────────────────────────────────
-	# Scales up with room number so later rooms are harder.
-	# Room 1: 3 enemies, Room 2: 4, Room 3: 5, etc.
-	var enemy_count: int = 2 + current_room
+	# ── Update visuals ────────────────────────────────────────
+	_room_doors = room["doors"]
+	_room_locked = should_lock
+	_room_type = room.get("type", 1)
+	get_parent().queue_redraw()
+	_minimap.update_current(pos)
+
+	# ── Position the player ───────────────────────────────────
+	# The player appears at the OPPOSITE side of the room from
+	# where they came.  If you walked UP through a door, you
+	# entered the room above, so you appear at the BOTTOM door.
+	var player: Node2D = get_parent().get_node("Player")
+	match from_dir:
+		"up":
+			player.position = Vector2(DOOR_CENTER_X, PLAY_BOTTOM - 4)
+		"down":
+			player.position = Vector2(DOOR_CENTER_X, PLAY_TOP + 4)
+		"left":
+			player.position = Vector2(PLAY_RIGHT - 4, DOOR_CENTER_Y)
+		"right":
+			player.position = Vector2(PLAY_LEFT + 4, DOOR_CENTER_Y)
+		_:
+			# Start room or unknown — center of room
+			player.position = Vector2(DOOR_CENTER_X, DOOR_CENTER_Y)
+
+	# Prevent door re-trigger for a moment
+	_transition_cooldown = TRANSITION_COOLDOWN
+
+	# ── Spawn room content ────────────────────────────────────
+	if is_combat and not room["cleared"]:
+		_spawn_room_enemies(room["type"] == DungeonGen.BOSS)
+		# Show room type
+		if room["type"] == DungeonGen.BOSS:
+			_show_status("!! BOSS !!")
+		# Regular combat rooms don't need a message — enemies appearing is clear enough
+	elif room["type"] == DungeonGen.TREASURE and not room["cleared"]:
+		_award_treasure(room)
+	elif room["type"] == DungeonGen.INGREDIENT and not room["cleared"]:
+		_discover_ingredient(room)
+	# START and EMPTY rooms: nothing to do, just explore!
+
+
+## Spawns enemies inside the current room.
+func _spawn_room_enemies(is_boss: bool) -> void:
 	var enemy_types: Array = recipe.get("enemy_types", ["slime"])
 	var hp_bonus: int = recipe.get("enemy_hp_bonus", 0)
+	var count_mult: int = recipe.get("enemy_count_multiplier", 1)
 
-	# ── Boss room check ────────────────────────────────────────
-	# If the recipe includes a boss (dark_crystal ingredient),
-	# the LAST room spawns a big boss enemy plus support enemies.
-	var is_boss_room: bool = recipe.get("has_boss", false) and current_room == room_count
-
-	if is_boss_room:
-		# Pick a random enemy type and spawn its boss variant.
+	if is_boss:
+		# Boss + support enemies
 		var boss_type: String = "boss_" + enemy_types[randi() % enemy_types.size()]
 		_spawn_enemy(boss_type, hp_bonus)
-		# Add a few normal enemies as support — bosses shouldn't
-		# fight alone, that would be too predictable!
-		for i in range(2):
+		var support_count: int = 2 * count_mult
+		for i in range(support_count):
 			var etype: String = enemy_types[randi() % enemy_types.size()]
 			_spawn_enemy(etype, hp_bonus)
 	else:
-		# Normal room — spawn enemy_count random enemies.
-		for i in range(enemy_count):
+		# Regular combat room: 3-5 base enemies, scaled by multiplier
+		var base_count: int = 3 + randi() % 3
+		var total_count: int = base_count * count_mult
+		for i in range(total_count):
 			var etype: String = enemy_types[randi() % enemy_types.size()]
 			_spawn_enemy(etype, hp_bonus)
 
 
-## Creates an enemy node, configures it, and places it at a random edge.
+## Creates a single enemy at a random position inside the room.
 ##
-## Key concept: **edge spawning**.
-## Enemies appear at the edges of the play area and walk toward the
-## player.  This looks natural — they're "entering the room" from
-## different directions.  We pick a random edge (top/bottom/left/right)
-## and a random position along that edge.
+## Key difference from the old system: enemies spawn INSIDE the room
+## (not at the edges).  We try to place them at least 40px away from
+## the player so they don't spawn right on top of you!
 func _spawn_enemy(type: String, hp_bonus: int) -> void:
 	var enemy := Node2D.new()
 	enemy.set_script(EnemyScript)
 	get_parent().add_child(enemy)
 	enemy.setup(type, hp_bonus)
-
-	# Connect the died signal so we know when to advance rooms.
 	enemy.died.connect(_on_enemy_died)
 
-	# Pick a random edge to spawn from.
-	var edge: int = randi() % 4
-	match edge:
-		0: enemy.position = Vector2(randf_range(SPAWN_LEFT, SPAWN_RIGHT), SPAWN_TOP)
-		1: enemy.position = Vector2(randf_range(SPAWN_LEFT, SPAWN_RIGHT), SPAWN_BOTTOM)
-		2: enemy.position = Vector2(SPAWN_LEFT, randf_range(SPAWN_TOP, SPAWN_BOTTOM))
-		3: enemy.position = Vector2(SPAWN_RIGHT, randf_range(SPAWN_TOP, SPAWN_BOTTOM))
-
+	# Try to find a spawn position away from the player
+	var player: Node2D = get_parent().get_node("Player")
+	var pos: Vector2 = Vector2.ZERO
+	for _attempt in range(10):
+		pos = Vector2(
+			randf_range(PLAY_LEFT + 20, PLAY_RIGHT - 20),
+			randf_range(PLAY_TOP + 20, PLAY_BOTTOM - 20)
+		)
+		if pos.distance_to(player.position) > 40.0:
+			break
+	enemy.position = pos
 	enemies_alive += 1
 
 
-## Called when an enemy dies — awards gold and checks if the room is clear.
-func _on_enemy_died(_enemy: Node2D, gold_value: int) -> void:
-	# Apply the gold multiplier from the recipe (gold_dust ingredient).
+## Awards gold for entering a treasure room.
+func _award_treasure(room: Dictionary) -> void:
+	var gold: int = 20 + randi() % 31  # 20-50 gold
+	gold = int(gold * recipe.get("gold_multiplier", 1.0))
+	total_gold_earned += gold
+	room["cleared"] = true
+	_show_status("TREASURE! +" + str(gold) + "G")
+	_minimap.queue_redraw()
+
+
+## Called when an enemy dies — awards gold, tracks stats, checks room clear.
+func _on_enemy_died(_enemy: Node2D, gold_value: int, type_name: String) -> void:
 	var gold: int = int(gold_value * recipe.get("gold_multiplier", 1.0))
 	total_gold_earned += gold
 	enemies_alive -= 1
+	_enemies_killed_this_run += 1
 
-	# If all enemies are dead, check what's next.
+	# ── Health drop chance ────────────────────────────────────
+	# 25% chance to drop a healing heart where the enemy died.
+	# This rewards aggressive play — kill fast, heal more!
+	if randf() < 0.25:
+		_spawn_health_pickup(_enemy.position)
+
+	if type_name.begins_with("boss_"):
+		_bosses_defeated_this_run += 1
+
+	# ── Room cleared? ─────────────────────────────────────────
 	if enemies_alive <= 0:
-		if current_room >= room_count:
-			_dungeon_complete()
+		var room: Dictionary = dungeon["rooms"][current_pos]
+		room["cleared"] = true
+		_rooms_cleared_this_run += 1
+
+		# Unlock doors so the player can leave!
+		doors_locked = false
+		_room_locked = false
+		get_parent().queue_redraw()
+
+		_minimap.queue_redraw()
+
+		# ── Healing Herb effect ───────────────────────────────
+		# If the recipe includes heal_per_room, restore HP after
+		# clearing each combat room.  Great for longer dungeons!
+		var heal: int = recipe.get("heal_per_room", 0)
+		var game: Node = get_parent()
+		if heal > 0 and game.has_node("Player"):
+			var player: Node2D = game.get_node("Player")
+			player.health = mini(player.health + heal, player._effective_max_hp)
+			player.hud.update_health(player.health, player._effective_max_hp)
+			_show_status("ROOM CLEARED! +" + str(heal) + " HP")
 		else:
 			_show_status("ROOM CLEARED!")
-			is_between_rooms = true
-			between_room_timer = BETWEEN_ROOM_DELAY
+
+		# Check if this was the goal room — dungeon complete!
+		if current_pos == dungeon["goal_pos"]:
+			_dungeon_complete()
 
 
 func _process(delta: float) -> void:
-	# ── Between-room countdown ─────────────────────────────────
-	# After clearing a room, we pause briefly before the next one.
-	# This gives the player a moment to breathe and reposition.
-	if is_between_rooms:
-		between_room_timer -= delta
-		if between_room_timer <= 0:
-			_start_room()
-
-	# ── Status message auto-hide ───────────────────────────────
+	# ── Status message timer ──────────────────────────────────
 	if _status_timer > 0:
 		_status_timer -= delta
 		if _status_timer <= 0 and _status_label:
 			_status_label.text = ""
 
+	# ── Transition cooldown ───────────────────────────────────
+	if _transition_cooldown > 0:
+		_transition_cooldown -= delta
 
-## Shows a status message in the center of the screen.
+	# Don't check doors while transitioning, complete, or on cooldown
+	if is_complete or is_transitioning or _transition_cooldown > 0:
+		return
+
+	# ── Check for door transitions ────────────────────────────
+	if not doors_locked:
+		var dir: String = _check_door_transition()
+		if dir != "":
+			_transition_room(dir)
+
+
+## Checks if the player is at a door and pressing into it.
+##
+## Key concept: **intentional door activation**.
+## The player has to be:
+##   1. At the wall (within DOOR_TRIGGER pixels of the boundary)
+##   2. Lined up with the door opening (within DOOR_HALF pixels of center)
+##   3. Actively pressing the movement key toward the door
+## All three conditions must be true!  This prevents accidental
+## transitions from just walking near a door.
+func _check_door_transition() -> String:
+	if not get_parent().has_node("Player"):
+		return ""
+
+	var player: Node2D = get_parent().get_node("Player")
+	var pos: Vector2 = player.position
+	var room: Dictionary = dungeon["rooms"][current_pos]
+
+	# Up door
+	if room["doors"].get("up", false):
+		if pos.y <= PLAY_TOP + DOOR_TRIGGER:
+			if absf(pos.x - DOOR_CENTER_X) <= DOOR_HALF:
+				if Input.is_action_pressed("move_up"):
+					return "up"
+
+	# Down door
+	if room["doors"].get("down", false):
+		if pos.y >= PLAY_BOTTOM - DOOR_TRIGGER:
+			if absf(pos.x - DOOR_CENTER_X) <= DOOR_HALF:
+				if Input.is_action_pressed("move_down"):
+					return "down"
+
+	# Left door
+	if room["doors"].get("left", false):
+		if pos.x <= PLAY_LEFT + DOOR_TRIGGER:
+			if absf(pos.y - DOOR_CENTER_Y) <= DOOR_HALF:
+				if Input.is_action_pressed("move_left"):
+					return "left"
+
+	# Right door
+	if room["doors"].get("right", false):
+		if pos.x >= PLAY_RIGHT - DOOR_TRIGGER:
+			if absf(pos.y - DOOR_CENTER_Y) <= DOOR_HALF:
+				if Input.is_action_pressed("move_right"):
+					return "right"
+
+	return ""
+
+
+## Handles transitioning from one room to another.
+func _transition_room(dir: String) -> void:
+	is_transitioning = true
+
+	# Clear all enemies and projectiles from the current room
+	_clear_room_content()
+
+	# Calculate the adjacent room's grid position
+	var new_pos: Vector2i = current_pos + DungeonGen.DIR_VECTORS[dir]
+
+	# Enter the new room (player appears at the opposite door)
+	_enter_room(new_pos, dir)
+
+	is_transitioning = false
+
+
+## Removes all enemies and projectiles from the scene.
+##
+## When you leave a room, everything in it disappears.  If the room
+## wasn't cleared, enemies will respawn fresh when you come back.
+## Projectiles also get cleaned up so they don't hit things in the
+## wrong room!
+func _clear_room_content() -> void:
+	enemies_alive = 0
+	var game: Node = get_parent()
+
+	# Remove all child nodes that are enemies or projectiles.
+	# We check the script to identify them — this is reliable because
+	# enemies use EnemyScript and projectiles use ProjectileScript.
+	for child in game.get_children():
+		if not is_instance_valid(child):
+			continue
+		var script = child.get_script()
+		if script == EnemyScript or script == ProjectileScript or script == HealthPickupScript:
+			child.queue_free()
+
+
+## Spawns a health pickup at the given position.
+func _spawn_health_pickup(pos: Vector2) -> void:
+	var pickup := Node2D.new()
+	pickup.set_script(HealthPickupScript)
+	pickup.position = pos
+	get_parent().add_child(pickup)
+
+
+
+
+
 func _show_status(text: String) -> void:
 	if _status_label:
 		_status_label.text = text
 		_status_timer = 2.0
 
 
-## Generates random ingredient drops based on the dungeon recipe.
+## Places special room types after the generator creates the base layout.
 ##
-## Key concept: **loot tables**.
-## Instead of giving fixed rewards, we pick randomly from a pool.
-## Enemy ingredients drop based on what you FOUGHT (so fighting skeletons
-## gives bone fragments), and there's a chance for bonus modifier drops.
-## The "lucky clover" ingredient increases your bonus chance!
-func _generate_loot_drops() -> Array:
-	var drops: Array = []
-	var enemy_types: Array = recipe.get("enemy_types", ["slime"])
-	var has_loot_bonus: bool = recipe.get("loot_bonus", false)
+## Key concept: **layered generation**.
+## The generator handles the MAP layout (which rooms connect to which).
+## Then WE handle the CONTENT (what's in each room).  This separation
+## keeps the generator simple and lets us add new room types without
+## changing the generator's algorithm!
+func _place_special_rooms() -> void:
+	var rooms: Dictionary = dungeon["rooms"]
+	var start: Vector2i = dungeon["start_pos"]
+	var goal: Vector2i = dungeon["goal_pos"]
 
-	# ── Enemy ingredient drops (guaranteed) ────────────────────
-	# You always get at least BASE_DROPS enemy ingredients.
-	# These match the enemies you fought — kill slimes, get slime essence!
-	# Map from enemy type to ingredient ID.
-	var type_to_ingredient: Dictionary = {
-		"slime": "slime_essence",
-		"skeleton": "bone_fragment",
-		"ghost": "shadow_wisp",
-	}
+	# Collect rooms we can change (not start, not goal)
+	var eligible: Array = []
+	for pos in rooms:
+		if pos != start and pos != goal:
+			eligible.append(pos)
+	eligible.shuffle()
 
-	for i in range(BASE_DROPS):
-		var etype: String = enemy_types[randi() % enemy_types.size()]
-		var ingr_id: String = type_to_ingredient.get(etype, "slime_essence")
-		drops.append({"id": ingr_id, "level": 1})
+	# ── Place 1 ingredient room ───────────────────────────────
+	# This is where the player can discover and permanently unlock
+	# a random locked ingredient during their run!
+	if not eligible.is_empty():
+		rooms[eligible[0]]["type"] = DungeonGen.INGREDIENT
+		eligible.remove_at(0)
 
-	# ── Bonus modifier drop (chance-based) ─────────────────────
-	# There's a chance to get a random modifier ingredient as a bonus.
-	# The lucky_clover ingredient doubles this chance!
-	var bonus_chance: float = BONUS_DROP_CHANCE
-	if has_loot_bonus:
-		bonus_chance *= 2.0  # 40% → 80% with lucky clover!
-
-	if randf() < bonus_chance:
-		var mod_id: String = MODIFIER_IDS[randi() % MODIFIER_IDS.size()]
-		drops.append({"id": mod_id, "level": 1})
-
-	return drops
+	# ── Place extra treasure rooms (from Treasure Map ingredient) ──
+	var extra_treasure: int = recipe.get("extra_treasure_rooms", 0)
+	var placed: int = 0
+	for i in range(eligible.size()):
+		if placed >= extra_treasure:
+			break
+		# Only convert combat rooms to treasure (don't overwrite other specials)
+		if rooms[eligible[i]]["type"] == DungeonGen.COMBAT:
+			rooms[eligible[i]]["type"] = DungeonGen.TREASURE
+			placed += 1
 
 
-## Called when all rooms are cleared — the player won!
-## Awards gold, drops ingredients, saves inventory, and returns to camp.
+## Handles entering an ingredient room — unlocks a random locked ingredient!
+##
+## Key concept: **alternative unlock paths**.
+## Normally, ingredients unlock through achievements (kill X enemies,
+## complete Y dungeons, etc.).  Ingredient rooms give a SECOND way to
+## unlock them — by exploring the dungeon!  This rewards curiosity
+## and makes dungeon crawling feel more rewarding.
+##
+## If ALL ingredients are already unlocked, you get bonus gold instead.
+## So ingredient rooms are never a waste!
+func _discover_ingredient(room: Dictionary) -> void:
+	room["cleared"] = true
+
+	# Find which ingredients are still locked
+	var unlocked: Array = get_tree().get_meta("unlocked_ingredients", ["slime_essence"])
+	var locked: Array = []
+	for id in IngredientData.INGREDIENTS:
+		if not unlocked.has(id):
+			locked.append(id)
+
+	if locked.is_empty():
+		# Everything unlocked — give bonus gold instead
+		var gold: int = 50 + randi() % 51  # 50-100 gold
+		gold = int(gold * recipe.get("gold_multiplier", 1.0))
+		total_gold_earned += gold
+		_show_status("NOTHING NEW... +" + str(gold) + "G")
+	else:
+		# Pick a random locked ingredient and unlock it!
+		var pick: String = locked[randi() % locked.size()]
+		unlocked.append(pick)
+		get_tree().set_meta("unlocked_ingredients", unlocked)
+		var ingr_name: String = IngredientData.INGREDIENTS[pick]["name"].to_upper()
+		_show_status("FOUND " + ingr_name + "!")
+
+	_minimap.queue_redraw()
+
+
+## Called when the goal room is cleared — the player won!
 func _dungeon_complete() -> void:
 	is_complete = true
 
-	# ── Drop ingredient rewards ────────────────────────────────
-	# The player earns random ingredients so they can craft the NEXT
-	# dungeon without needing the shop.  This creates a natural loop:
-	# use ingredients → beat dungeon → get new ingredients → repeat!
-	var drops: Array = _generate_loot_drops()
-	var game: Node = get_parent()
-	if game.has_node("Player"):
-		var player: Node2D = game.get_node("Player")
-		for drop in drops:
-			IngredientData.add_to_bag(player.inventory["bag"], drop["id"])
+	# ── Update persistent stats ───────────────────────────────
+	var prev_dungeons: int = get_tree().get_meta("stats_dungeons_completed", 0)
+	var prev_gold: int = get_tree().get_meta("stats_total_gold_earned", 0)
+	var prev_kills: int = get_tree().get_meta("stats_total_enemies_killed", 0)
+	var prev_bosses: int = get_tree().get_meta("stats_bosses_defeated", 0)
 
-	# Show victory message with gold and drops earned.
-	var drop_text: String = ""
-	if not drops.is_empty():
-		drop_text = " +" + str(drops.size()) + " ITEMS"
-	_show_status("COMPLETE! +" + str(total_gold_earned) + "G" + drop_text)
-	_room_label.text = "VICTORY!"
+	get_tree().set_meta("stats_dungeons_completed", prev_dungeons + 1)
+	get_tree().set_meta("stats_total_gold_earned", prev_gold + total_gold_earned)
+	get_tree().set_meta("stats_total_enemies_killed", prev_kills + _enemies_killed_this_run)
+	get_tree().set_meta("stats_bosses_defeated", prev_bosses + _bosses_defeated_this_run)
 
+	# ── Check for new ingredient unlocks ──────────────────────
+	var new_unlocks: Array = _check_ingredient_unlocks()
+
+	# ── Show victory message ──────────────────────────────────
+	var msg: String = "COMPLETE! +" + str(total_gold_earned) + "G"
+	if not new_unlocks.is_empty():
+		var names: Array = []
+		for uid in new_unlocks:
+			names.append(IngredientData.INGREDIENTS[uid]["name"].to_upper())
+		msg += " NEW: " + ", ".join(names) + "!"
+	_show_status(msg)
 	# Award gold to the player's total.
 	var current_gold: int = get_tree().get_meta("player_gold", 0)
 	get_tree().set_meta("player_gold", current_gold + total_gold_earned)
 
-	# Save the player's inventory (now including the loot drops).
+	# Save the player's inventory.
+	var game: Node = get_parent()
 	if game.has_node("Player"):
 		var player: Node2D = game.get_node("Player")
 		get_tree().set_meta("player_inventory", player.inventory.duplicate(true))
@@ -333,8 +592,56 @@ func _dungeon_complete() -> void:
 		get_tree().remove_meta("dungeon_recipe")
 
 	# Return to camp after a brief victory moment.
-	# await pauses this function until the timer fires.
-	# If the scene changes before then (e.g. player presses Escape),
-	# the coroutine is simply abandoned — no crash!
 	await get_tree().create_timer(COMPLETE_DELAY).timeout
 	get_tree().change_scene_to_file("res://scenes/camp.tscn")
+
+
+## Checks ALL ingredients and unlocks any whose conditions are now met.
+## This is identical to the previous system — the unlock logic doesn't
+## care whether the dungeon was waves or rooms, just the stats!
+func _check_ingredient_unlocks() -> Array:
+	var unlocked: Array = get_tree().get_meta("unlocked_ingredients", [])
+	var new_unlocks: Array = []
+
+	var dungeons: int = get_tree().get_meta("stats_dungeons_completed", 0)
+	var total_gold: int = get_tree().get_meta("stats_total_gold_earned", 0)
+	var total_kills: int = get_tree().get_meta("stats_total_enemies_killed", 0)
+	var bosses: int = get_tree().get_meta("stats_bosses_defeated", 0)
+	var took_damage: bool = get_tree().get_meta("stats_took_damage_this_run", false)
+
+	for ingr_id in IngredientData.INGREDIENTS:
+		if ingr_id in unlocked:
+			continue
+
+		var data: Dictionary = IngredientData.INGREDIENTS[ingr_id]
+		var unlock: Dictionary = data.get("unlock", {})
+		var utype: String = unlock.get("type", "")
+		var ucount: int = unlock.get("count", 0)
+		var met: bool = false
+
+		match utype:
+			"default":
+				met = true
+			"dungeons_completed":
+				met = dungeons >= ucount
+			"enemies_killed_in_run":
+				met = _enemies_killed_this_run >= ucount
+			"total_gold_earned":
+				met = total_gold >= ucount
+			"rooms_cleared_in_run":
+				met = _rooms_cleared_this_run >= ucount
+			"dungeons_completed_no_damage":
+				met = not took_damage and dungeons >= ucount
+			"bosses_defeated":
+				met = bosses >= ucount
+			"enemies_killed_total":
+				met = total_kills >= ucount
+
+		if met:
+			unlocked.append(ingr_id)
+			new_unlocks.append(ingr_id)
+
+	if not new_unlocks.is_empty():
+		get_tree().set_meta("unlocked_ingredients", unlocked)
+
+	return new_unlocks

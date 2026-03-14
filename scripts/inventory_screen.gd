@@ -71,7 +71,6 @@ const TAB_DEFS: Array = [
 	{"id": "melee",      "label": "MELEE",  "w": 24},
 	{"id": "ranged",     "label": "RANGED", "w": 28},
 	{"id": "armor",      "label": "ARMOR",  "w": 24},
-	{"id": "ingredient", "label": "INGR",   "w": 20},
 ]
 
 # Item info panel (shown below the bag when an item is clicked)
@@ -416,8 +415,6 @@ func _get_item_data(id: String) -> Dictionary:
 		return WeaponData.WEAPONS[id]
 	if ArmorData.ARMOR.has(id):
 		return ArmorData.ARMOR[id]
-	if IngredientData.INGREDIENTS.has(id):
-		return IngredientData.INGREDIENTS[id]
 	return {}
 
 
@@ -528,11 +525,6 @@ func _draw_item_slot(r: Rect2, item: Dictionary, mp: Vector2, drop_slot: String)
 			var cy: int = int(r.position.y) + int((r.size.y - 7) / 2.0)
 			_draw_item_icon(cx, cy, item_id)
 			_draw_text(cx + 9, cy + 1, data.get("name", "").to_upper(), COL_WEAPON)
-			# Show stack count below the name text
-			var stack_count: int = item.get("count", 1)
-			if stack_count > 1:
-				var count_str: String = "x" + str(stack_count)
-				_draw_text(cx + 9, cy + 7, count_str, COL_SLOT_HLT)
 
 
 func _draw_info_panel() -> void:
@@ -578,8 +570,7 @@ func _draw_info_panel() -> void:
 func _draw_item_icon(x: int, y: int, item_id: String) -> void:
 	var data: Dictionary = _get_item_data(item_id)
 	var icon: Array = data.get("icon", [])
-	# Ingredients draw in green, everything else in gold
-	var icon_col: Color = COL_INGR if data.get("type", "") == "ingredient" else COL_WEAPON
+	var icon_col: Color = COL_WEAPON
 	for row in range(icon.size()):
 		for col in range(icon[row].size()):
 			if icon[row][col] == 1:

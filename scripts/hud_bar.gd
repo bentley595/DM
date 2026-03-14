@@ -47,6 +47,13 @@ const ICON_ARROW: Array = [
 	[0, 1, 0],
 ]
 
+## Potion bottle — round body with a narrow neck.
+const ICON_POTION: Array = [
+	[0, 1, 0],
+	[1, 1, 1],
+	[0, 1, 0],
+]
+
 # ── Exported properties (configurable per-instance) ──────────────
 # These defaults are set up for a health bar (red).
 # The momentum bar overrides them in the scene file to blue.
@@ -106,10 +113,15 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	# ── Draw the icon (3x3 pixels) ──────────────────────────────
-	var icon: Array = ICON_HEART  if icon_type == "heart"  \
-				else ICON_BOLT  if icon_type == "bolt"   \
-				else ICON_ARROW if icon_type == "arrow"  \
-				else ICON_SOUL
+	var icon: Array = ICON_HEART
+	if icon_type == "bolt":
+		icon = ICON_BOLT
+	elif icon_type == "arrow":
+		icon = ICON_ARROW
+	elif icon_type == "potion":
+		icon = ICON_POTION
+	elif icon_type == "soul":
+		icon = ICON_SOUL
 	for row in 3:
 		for col in 3:
 			if icon[row][col] == 1:

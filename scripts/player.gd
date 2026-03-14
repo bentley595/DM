@@ -47,6 +47,31 @@ var health: int = MAX_HEALTH
 ## True when the player has died (prevents further damage/input).
 var is_dead: bool = false
 
+## The effective max HP for this run (may be reduced by challenge ingredients).
+## This is separate from MAX_HEALTH so we can reset it each run.
+var _effective_max_hp: int = MAX_HEALTH
+
+# ── Health potion ────────────────────────────────────────────────────
+## The potion is charged by collecting hearts from dead enemies.
+## Press E to drink it and heal!  This gives you control over WHEN
+## to heal — save it for a tough fight or use it right away.
+
+## Maximum potion charge.
+const POTION_MAX: int = 100
+
+## How much HP one full potion restores.
+const POTION_HEAL: int = 40
+
+## Current potion charge (0 = empty, 100 = full and ready to drink).
+var potion_charge: int = 0
+
+## How long the green heal flash lasts (seconds).
+const HEAL_FLASH_DURATION: float = 0.3
+
+## Timer for the green flash effect when drinking a potion.
+## While > 0, the character sprite tints green to show healing.
+var _heal_flash_timer: float = 0.0
+
 # ── Movement settings ─────────────────────────────────────────────────
 
 ## How fast the player moves in pixels per second.
@@ -260,21 +285,27 @@ func _ready() -> void:
 	if not saved_inv.is_empty():
 		inventory = saved_inv
 
-	# Check for starting bag items (from playtest mode).
-	# These get merged INTO the existing bag rather than replacing it,
-	# so they work alongside the default equipment from setup().
-	# Check for starting bag items (from playtest mode or new game).
-	# Uses add_to_bag so ingredients stack properly instead of
-	# flooding the bag with separate entries!
-	var starting_items: Array = get_tree().get_meta("starting_bag_items", [])
-	if not starting_items.is_empty():
-		for item in starting_items:
-			var id: String = item.get("id", "")
-			if IngredientData.INGREDIENTS.has(id):
-				IngredientData.add_to_bag(inventory["bag"], id, item.get("count", 1))
-			else:
-				inventory["bag"].append(item)
-		get_tree().remove_meta("starting_bag_items")
+	# Ingredients are now permanent unlocks (not bag items), so no
+	# starting_bag_items handling is needed for ingredients anymore.
+
+	# ── Apply dungeon recipe debuffs ──────────────────────────
+	# Challenge ingredients modify the player's stats for THIS run.
+	# For example, "Frailty" halves your max HP, "Lead Boots" slows you.
+	# These are stored in the recipe Dictionary set by the crafting UI.
+	var recipe: Dictionary = get_tree().get_meta("dungeon_recipe", {})
+	if not recipe.is_empty():
+		# HP multiplier (Frailty: 0.5 = half HP)
+		var hp_mult: float = recipe.get("player_hp_multiplier", 1.0)
+		if hp_mult != 1.0:
+			var effective_max: int = maxi(1, int(MAX_HEALTH * hp_mult))
+			health = effective_max
+			# We store the effective max so the HUD shows the right bar size
+			_effective_max_hp = effective_max
+
+		# Speed multiplier (Lead Boots: 0.75 = 25% slower)
+		var spd_mult: float = recipe.get("player_speed_multiplier", 1.0)
+		if spd_mult != 1.0:
+			move_speed = move_speed * spd_mult
 
 	# Listen for weapon changes from the inventory screen
 	_inv_screen.weapon_equipped.connect(_on_weapon_equipped)
@@ -320,7 +351,7 @@ func setup(character_index: int, player_name: String) -> void:
 	inventory.armor  = {"id": ArmorData.default_armor(char_template),   "level": 1}
 
 	# Set the HUD to show real values instead of placeholders
-	hud.update_health(health, MAX_HEALTH)
+	hud.update_health(health, _effective_max_hp)
 	hud.update_ammo(ammo, _current_max_ammo())
 	hud.update_soul(soul, MAX_SOUL)
 	_update_momentum_hud()
@@ -369,6 +400,19 @@ func _process(delta: float) -> void:
 				obj.on_interact()
 				break
 
+	# ── Drink potion ────────────────────────────────────────────
+	# Press E to drink your potion.  Only works if the potion is
+	# fully charged (100) and you're not at full health.
+	if Input.is_action_just_pressed("drink_potion"):
+		if potion_charge >= POTION_MAX and health < _effective_max_hp:
+			health = mini(health + POTION_HEAL, _effective_max_hp)
+			hud.update_health(health, _effective_max_hp)
+			potion_charge = 0
+			hud.update_potion(potion_charge, POTION_MAX)
+			# Visual feedback: green ring contracts inward + green sprite flash
+			momentum_burst.trigger_heal(Color(0.2, 1.0, 0.4))
+			_heal_flash_timer = HEAL_FLASH_DURATION
+
 	# ── Update roll cooldown ─────────────────────────────────────
 	# This runs every frame, even when we're not rolling.
 	# It counts down the timer and updates the HUD arrow indicator.
@@ -383,6 +427,25 @@ func _process(delta: float) -> void:
 		roll_cooldown_timer = maxf(roll_cooldown_timer - delta, 0.0)
 		var cooldown_percent: float = 1.0 - (roll_cooldown_timer / ROLL_COOLDOWN)
 		hud.update_roll_cooldown(cooldown_percent)
+
+	# ── Update heal flash ───────────────────────────────────────
+	# When the potion is drunk, the sprite briefly tints green.
+	# Key concept: **modulate for color tinting**.
+	# Every node has a "modulate" property — it multiplies the
+	# node's colors.  White (1,1,1) = normal.  Green-tinted
+	# means we boost green and reduce red/blue slightly.
+	# As the timer counts down, we fade back to normal white.
+	if _heal_flash_timer > 0:
+		_heal_flash_timer = maxf(_heal_flash_timer - delta, 0.0)
+		var flash_strength: float = _heal_flash_timer / HEAL_FLASH_DURATION
+		sprite.modulate = Color(
+			1.0 - flash_strength * 0.4,   # slightly less red
+			1.0 + flash_strength * 0.5,    # boosted green (can go above 1.0!)
+			1.0 - flash_strength * 0.4,    # slightly less blue
+			1.0
+		)
+		if _heal_flash_timer <= 0:
+			sprite.modulate = Color.WHITE  # back to normal
 
 	# ── Update swing cooldown ────────────────────────────────────
 	# Same pattern as roll cooldown — counts down each frame.
@@ -790,7 +853,10 @@ func take_damage(amount: int = 1) -> void:
 
 	# Reduce health and update the HUD health bar.
 	health = maxi(health - amount, 0)
-	hud.update_health(health, MAX_HEALTH)
+	hud.update_health(health, _effective_max_hp)
+
+	# Track that the player took damage this run (used for unlock conditions).
+	get_tree().set_meta("stats_took_damage_this_run", true)
 
 	# Reset momentum (the punishment for getting hit).
 	if momentum > 0:
@@ -820,6 +886,17 @@ func _die() -> void:
 	## The ingredients you used to craft the dungeon are already consumed,
 	## so dying means you lost those ingredients AND got no gold reward.
 	## This makes dying feel punishing without being too harsh!
+
+	# ── Phoenix Feather revive check ──────────────────────────
+	# If the player crafted a dungeon with a Phoenix Feather, they
+	# get ONE free revive at half HP!  The metadata flag is consumed
+	# (removed) so it only works once per run.
+	if get_tree().get_meta("dungeon_has_revive", false):
+		get_tree().remove_meta("dungeon_has_revive")
+		health = maxi(_effective_max_hp / 2, 1)
+		hud.update_health(health, _effective_max_hp)
+		return  # Don't die — you've been revived!
+
 	is_dead = true
 
 	# Save inventory so items persist.
