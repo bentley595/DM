@@ -105,6 +105,27 @@ var _enemies_killed_this_run: int = 0
 var _rooms_cleared_this_run: int = 0
 var _bosses_defeated_this_run: int = 0
 
+# ── Multi-floor state ─────────────────────────────────────────
+## The dungeon now has multiple floors!  Each floor is its own grid
+## of rooms.  The player descends via stairs rooms and exits from
+## the final floor.  Think of it like a building with 3 levels.
+
+## Total number of floors in this dungeon run.
+var total_floors: int = 3
+
+## Which floor the player is currently on (0-indexed).
+## Floor 0 = "Floor 1" in the UI.
+var current_floor: int = 0
+
+## Array of dungeon Dictionaries — one per floor.
+## Each entry is a full result from DungeonGen.generate():
+## { "rooms": {...}, "start_pos": Vector2i, "goal_pos": Vector2i }
+var floors: Array = []
+
+## Tracks whether each floor has been 100% cleared.
+## Used for the full-dungeon completion bonus at the end.
+var floors_fully_cleared: Array = []
+
 
 func _ready() -> void:
 	# ── Read the recipe ───────────────────────────────────────
@@ -141,36 +162,63 @@ func _ready() -> void:
 		bg.visible = false
 		bg.queue_free()
 
-	# ── Generate the dungeon map ──────────────────────────────
-	# room_count from recipe scales the dungeon size.  We multiply
-	# by a big factor so even the default recipe gives a sprawling
-	# 10x10-ish grid of rooms to explore.
-	var total_rooms: int = (recipe.get("room_count", 3) + 4) * 3
+	# ── Generate ALL floors ───────────────────────────────────
+	# Each floor is its own independent grid of rooms.  We generate
+	# them all up front so the data is ready when the player descends.
+	#
+	# Key concept: **multi-floor architecture**.
+	# Instead of one big dungeon, we have 3 smaller dungeons stacked.
+	# Non-final floors have a STAIRS room at the furthest point.
+	# The final floor has an EXIT (or BOSS) room.
+	var rooms_per_floor: int = (recipe.get("room_count", 3) + 4) * 3
 	var has_boss: bool = recipe.get("has_boss", false)
-	dungeon = DungeonGen.generate(total_rooms, has_boss)
 
-	# Place special room types (ingredient room, extra treasures)
-	_place_special_rooms()
+	for i in range(total_floors):
+		var is_final: bool = (i == total_floors - 1)
+		# Only the final floor gets the boss (if recipe includes one).
+		# generate() with has_boss=true sets the goal room to BOSS type.
+		var floor_data: Dictionary = DungeonGen.generate(rooms_per_floor, has_boss and is_final)
 
-	# ── Apply recipe-based map effects ────────────────────────
-	# Map Scroll: reveal the entire minimap from the start!
-	if recipe.get("reveal_map", false):
-		for pos in dungeon["rooms"]:
-			dungeon["rooms"][pos]["explored"] = true
+		# Set the goal room type based on which floor this is:
+		var goal: Vector2i = floor_data["goal_pos"]
+		if not is_final:
+			# Non-final floors: goal becomes stairs to the next floor
+			floor_data["rooms"][goal]["type"] = DungeonGen.STAIRS
+		elif not has_boss:
+			# Final floor without boss: goal becomes the exit
+			floor_data["rooms"][goal]["type"] = DungeonGen.EXIT
+
+		# Place special rooms (ingredient, extra treasure) on this floor.
+		# We temporarily set "dungeon" so _place_special_rooms() can read it.
+		dungeon = floor_data
+		_place_special_rooms()
+
+		# Apply recipe map effects per floor
+		if recipe.get("reveal_map", false):
+			for pos in floor_data["rooms"]:
+				floor_data["rooms"][pos]["explored"] = true
+
+		floors.append(floor_data)
+		floors_fully_cleared.append(false)
 
 	# Phoenix Feather: set a metadata flag the player can check
 	if recipe.get("has_revive", false):
 		get_tree().set_meta("dungeon_has_revive", true)
 
+	# Start on floor 0
+	current_floor = 0
+	dungeon = floors[0]
+
 	_minimap = game.get_node("HUD/Minimap")
 	_minimap.setup(dungeon)
+	_minimap.set_floor(1)
 
 	# ── Create HUD labels ────────────────────────────────────
 	_create_hud_labels()
 
 	# ── Enter the start room ─────────────────────────────────
 	_enter_room(dungeon["start_pos"], "")
-	_show_status("EXPLORE THE DUNGEON!")
+	_show_status("FLOOR 1")
 
 
 ## Creates bitmap labels on the HUD for status messages.
@@ -243,6 +291,14 @@ func _enter_room(pos: Vector2i, from_dir: String) -> void:
 		_award_treasure(room)
 	elif room["type"] == DungeonGen.INGREDIENT and not room["cleared"]:
 		_discover_ingredient(room)
+	elif room["type"] == DungeonGen.STAIRS and not room["cleared"]:
+		room["cleared"] = true
+		_rooms_cleared_this_run += 1
+		_show_status("STAIRS -- PRESS E TO DESCEND")
+	elif room["type"] == DungeonGen.EXIT and not room["cleared"]:
+		room["cleared"] = true
+		_rooms_cleared_this_run += 1
+		_show_status("EXIT -- PRESS E TO LEAVE")
 	# START and EMPTY rooms: nothing to do, just explore!
 
 
@@ -251,6 +307,10 @@ func _spawn_room_enemies(is_boss: bool) -> void:
 	var enemy_types: Array = recipe.get("enemy_types", ["slime"])
 	var hp_bonus: int = recipe.get("enemy_hp_bonus", 0)
 	var count_mult: int = recipe.get("enemy_count_multiplier", 1)
+
+	# Per-floor scaling: enemies get +1 HP per floor after the first.
+	# Floor 0 = +0, Floor 1 = +1, Floor 2 = +2.  Gentle but noticeable!
+	hp_bonus += current_floor
 
 	if is_boss:
 		# Boss + support enemies
@@ -347,8 +407,9 @@ func _on_enemy_died(_enemy: Node2D, gold_value: int, type_name: String) -> void:
 		else:
 			_show_status("ROOM CLEARED!")
 
-		# Check if this was the goal room — dungeon complete!
-		if current_pos == dungeon["goal_pos"]:
+		# Check if this was the BOSS goal room — that triggers completion
+		# on the final floor.  STAIRS and EXIT are handled by E-key in _process().
+		if current_pos == dungeon["goal_pos"] and dungeon["rooms"][current_pos]["type"] == DungeonGen.BOSS:
 			_dungeon_complete()
 
 
@@ -366,6 +427,20 @@ func _process(delta: float) -> void:
 	# Don't check doors while transitioning, complete, or on cooldown
 	if is_complete or is_transitioning or _transition_cooldown > 0:
 		return
+
+	# ── Check for stairs/exit interaction (E key) ────────────
+	# The player presses E to descend stairs or leave the dungeon.
+	# This is separate from door transitions — you have to
+	# intentionally press E, not just walk into it.
+	if not doors_locked:
+		var room: Dictionary = dungeon["rooms"][current_pos]
+		if Input.is_action_just_pressed("interact"):
+			if room["type"] == DungeonGen.STAIRS:
+				_go_to_next_floor()
+				return
+			elif room["type"] == DungeonGen.EXIT:
+				_dungeon_complete()
+				return
 
 	# ── Check for door transitions ────────────────────────────
 	if not doors_locked:
@@ -420,6 +495,76 @@ func _check_door_transition() -> String:
 					return "right"
 
 	return ""
+
+
+## Descends to the next floor of the dungeon.
+##
+## Key concept: **floor transitions**.
+## Each floor is a completely separate grid of rooms.  When the player
+## descends, we swap out the current floor's data for the next one,
+## reset the minimap, and enter the new floor's start room.  All the
+## room state from previous floors is preserved in the floors[] array
+## in case we want to track per-floor stats later.
+func _go_to_next_floor() -> void:
+	# Check if the current floor was fully cleared before leaving
+	_check_floor_bonus()
+
+	# Clear any enemies/projectiles still on screen
+	_clear_room_content()
+
+	# Move to the next floor
+	current_floor += 1
+	dungeon = floors[current_floor]
+
+	# Reset the minimap to show the new floor's layout
+	_minimap.setup(dungeon)
+	_minimap.set_floor(current_floor + 1)
+
+	# Enter the new floor's start room
+	_enter_room(dungeon["start_pos"], "")
+	_show_status("FLOOR " + str(current_floor + 1))
+
+
+## Checks if every room on the current floor has been cleared.
+## If so, awards a bonus and marks the floor as fully cleared.
+##
+## Key concept: **completion bonuses**.
+## Clearing every single room on a floor gives bonus gold.  This
+## rewards thorough exploration over just rushing to the stairs.
+## EMPTY rooms count as "cleared" once explored (no enemies to fight).
+func _check_floor_bonus() -> void:
+	var rooms: Dictionary = dungeon["rooms"]
+	var all_cleared: bool = true
+
+	for pos in rooms:
+		var room: Dictionary = rooms[pos]
+		# EMPTY and START rooms just need to be explored
+		if room["type"] == DungeonGen.EMPTY or room["type"] == DungeonGen.START:
+			if not room["explored"]:
+				all_cleared = false
+				break
+		else:
+			if not room["cleared"]:
+				all_cleared = false
+				break
+
+	if all_cleared and not floors_fully_cleared[current_floor]:
+		floors_fully_cleared[current_floor] = true
+		var bonus: int = _calc_floor_bonus()
+		total_gold_earned += bonus
+		_show_status("FLOOR CLEARED! +" + str(bonus) + "G BONUS")
+
+
+## Calculates the gold bonus for fully clearing one floor.
+## About the same as finding one extra treasure room (20-50G).
+func _calc_floor_bonus() -> int:
+	return int(25 * recipe.get("gold_multiplier", 1.0))
+
+
+## Calculates the gold bonus for fully clearing ALL floors.
+## This is the big reward — 100G per floor at base multiplier.
+func _calc_dungeon_bonus() -> int:
+	return int(100 * total_floors * recipe.get("gold_multiplier", 1.0))
 
 
 ## Handles transitioning from one room to another.
@@ -551,9 +696,24 @@ func _discover_ingredient(room: Dictionary) -> void:
 	_minimap.queue_redraw()
 
 
-## Called when the goal room is cleared — the player won!
+## Called when the player completes the dungeon — either by clearing
+## the BOSS room or pressing E in the EXIT room on the final floor.
 func _dungeon_complete() -> void:
 	is_complete = true
+
+	# ── Floor and dungeon completion bonuses ──────────────────
+	# Check if the final floor was fully cleared
+	_check_floor_bonus()
+
+	# Check if ALL floors were fully cleared (100% dungeon run!)
+	var all_floors_done: bool = true
+	for cleared in floors_fully_cleared:
+		if not cleared:
+			all_floors_done = false
+			break
+	if all_floors_done:
+		var dungeon_bonus: int = _calc_dungeon_bonus()
+		total_gold_earned += dungeon_bonus
 
 	# ── Update persistent stats ───────────────────────────────
 	var prev_dungeons: int = get_tree().get_meta("stats_dungeons_completed", 0)
@@ -571,6 +731,8 @@ func _dungeon_complete() -> void:
 
 	# ── Show victory message ──────────────────────────────────
 	var msg: String = "COMPLETE! +" + str(total_gold_earned) + "G"
+	if all_floors_done:
+		msg += " (FULL CLEAR!)"
 	if not new_unlocks.is_empty():
 		var names: Array = []
 		for uid in new_unlocks:

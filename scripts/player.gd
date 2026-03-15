@@ -358,6 +358,14 @@ func setup(character_index: int, player_name: String) -> void:
 
 
 func _process(delta: float) -> void:
+	# Skip everything if the game is paused (pause menu is open).
+	# Why is this needed?  When the Game node sets process_mode = ALWAYS
+	# (so it can handle ESC to unpause), child nodes like Player INHERIT
+	# that mode and keep running too.  This check stops the player from
+	# moving/attacking while the pause menu is up.
+	if get_tree().paused:
+		return
+
 	# Skip everything if the player is dead — no movement, no attacks.
 	if is_dead:
 		return
@@ -387,25 +395,31 @@ func _process(delta: float) -> void:
 	if _overlay_open:
 		return
 
-	# ── Interact with nearby stations ────────────────────────────
-	# Press E to interact with the nearest interactable (forge, shop, etc.)
-	# This uses the same groups pattern as hit detection — we look for
-	# nodes in the "interactable" group, check distance, and call their
-	# on_interact() method.  Any node that adds itself to the
-	# "interactable" group and has on_interact() will work automatically!
+	# ── Interact OR Drink potion ─────────────────────────────────
+	# Both use the E key!  Priority: interact with a station first.
+	# If no station is nearby, drink the potion instead.
+	#
+	# Key concept: **contextual input**.
+	# One key does different things depending on the situation.
+	# Near a forge?  E opens the forge.  In combat?  E drinks
+	# your potion.  Many games do this (Zelda, Dark Souls, etc.)
 	if Input.is_action_just_pressed("interact"):
+		# First try: interact with a nearby station
+		var did_interact: bool = false
 		var interactables: Array = get_tree().get_nodes_in_group("interactable")
 		for obj in interactables:
 			if global_position.distance_to(obj.global_position) <= 30.0:
 				obj.on_interact()
+				did_interact = true
 				break
 
-	# ── Drink potion ────────────────────────────────────────────
-	# Press E to drink your potion.  Only works if the potion is
-	# fully charged (100) and you're not at full health.
-	if Input.is_action_just_pressed("drink_potion"):
-		if potion_charge >= POTION_MAX and health < _effective_max_hp:
-			health = mini(health + POTION_HEAL, _effective_max_hp)
+		# Second try: if no station was nearby, drink the potion.
+		# Works at ANY charge level — healing scales proportionally:
+		#   100 charge = full heal (40 HP)
+		#   34 charge  = ~14 HP (one heart's worth)
+		if not did_interact and potion_charge > 0 and health < _effective_max_hp:
+			var heal_amount: int = maxi(1, int(POTION_HEAL * potion_charge / POTION_MAX))
+			health = mini(health + heal_amount, _effective_max_hp)
 			hud.update_health(health, _effective_max_hp)
 			potion_charge = 0
 			hud.update_potion(potion_charge, POTION_MAX)

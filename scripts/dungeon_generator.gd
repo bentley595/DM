@@ -25,6 +25,8 @@ const TREASURE: int = 2
 const EMPTY: int = 3
 const BOSS: int = 4
 const INGREDIENT: int = 5
+const STAIRS: int = 6      # leads to the next floor
+const EXIT: int = 7        # final room — leave the dungeon
 
 # ── Direction helpers ────────────────────────────────────────────
 ## These two Dictionaries let us work with directions as data.

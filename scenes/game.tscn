@@ -49,7 +49,7 @@ grow_vertical = 0
 theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
 theme_override_font_sizes/font_size = 8
 horizontal_alignment = 1
-text = "WASD: Move   Space: Roll   LClick: Attack   RClick: Shoot   Q: Potion   I: Inventory   T: Console   Esc: Back"
+text = "WASD: Move   Space: Roll   LClick: Attack   RClick: Shoot   E: Potion   I: Inventory   T: Console   Esc: Back"
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("4_hud")

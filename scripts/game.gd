@@ -28,6 +28,18 @@ const FLICKER_INTERVAL: float = 0.15
 ## Countdown timer for the next torch flicker redraw.
 var _flicker_timer: float = 0.0
 
+# ── Pause menu state ──────────────────────────────────────────
+## True when the pause menu is open.  Freezes the game world
+## and shows Resume / Exit options.
+var is_paused: bool = false
+
+## The CanvasLayer + Node2D for drawing the pause menu overlay.
+var _pause_layer: CanvasLayer = null
+var _pause_draw: Node2D = null
+
+## Which button is currently highlighted (0 = Resume, 1 = Exit).
+var _pause_selection: int = 0
+
 
 func _ready() -> void:
 	# Force a draw call so _draw() runs on the first frame
@@ -534,6 +546,24 @@ func _draw_room() -> void:
 		draw_rect(Rect2(ir - 2, it + 1, 1, 3), web)
 		draw_rect(Rect2(il + 1, ib - 2, 3, 1), web)
 		draw_rect(Rect2(il + 1, ib - 4, 1, 3), web)
+	elif room_type == 6:  # STAIRS -- descending staircase icon
+		# 3 steps going down to the right, like stone stairs.
+		var stair_col := Color(0.6, 0.55, 0.45)
+		var stair_dark := Color(0.35, 0.30, 0.25)
+		draw_rect(Rect2(cx - 4, cy - 3, 3, 2), stair_col)   # top step
+		draw_rect(Rect2(cx - 4, cy - 1, 3, 1), stair_dark)   # shadow
+		draw_rect(Rect2(cx - 1, cy - 1, 3, 2), stair_col)   # middle step
+		draw_rect(Rect2(cx - 1, cy + 1, 3, 1), stair_dark)   # shadow
+		draw_rect(Rect2(cx + 2, cy + 1, 3, 2), stair_col)   # bottom step
+		draw_rect(Rect2(cx + 2, cy + 3, 3, 1), stair_dark)   # shadow
+	elif room_type == 7:  # EXIT -- bright archway with light
+		# Stone arch with warm light spilling through.
+		var arch := Color(0.7, 0.65, 0.55)
+		var light := Color(0.9, 1.0, 0.7, 0.8)
+		draw_rect(Rect2(cx - 3, cy - 3, 1, 7), arch)   # left pillar
+		draw_rect(Rect2(cx + 3, cy - 3, 1, 7), arch)   # right pillar
+		draw_rect(Rect2(cx - 3, cy - 3, 7, 1), arch)   # top arch
+		draw_rect(Rect2(cx - 2, cy - 2, 5, 6), light)   # warm light inside
 	elif room_type == 0:  # START -- diamond marker
 		var mark := Color(0.3, 0.5, 0.3, 0.5)
 		draw_rect(Rect2(cx, cy - 2, 1, 1), mark)
@@ -635,12 +665,171 @@ func _unhandled_input(event: InputEvent) -> void:
 		if has_node("DungeonManager") and $DungeonManager.is_complete:
 			return
 
-		# Save inventory before returning to camp so nothing is lost.
+		# Toggle the pause menu on/off
+		if is_paused:
+			_unpause()
+		else:
+			_pause()
+		return
+
+	# ── Pause menu input ────────────────────────────────────
+	# When paused, arrow keys/WASD move the selection, Enter/E confirms.
+	if is_paused:
+		if event.is_action_pressed("move_up") or event.is_action_pressed("move_down"):
+			# Toggle between Resume (0) and Exit (1)
+			_pause_selection = 1 - _pause_selection
+			_pause_draw.queue_redraw()
+		elif event.is_action_pressed("interact") or event is InputEventKey and event.pressed and event.keycode == KEY_ENTER:
+			if _pause_selection == 0:
+				# Resume
+				_unpause()
+			else:
+				# Exit dungeon
+				_exit_dungeon()
+
+
+## Opens the pause menu and freezes the game world.
+##
+## Key concept: **SceneTree.paused**.
+## Setting get_tree().paused = true stops ALL _process() and _physics_process()
+## calls on every node.  But we need the pause menu itself to keep working!
+## That's why the pause overlay has process_mode = ALWAYS -- it ignores
+## the pause and keeps responding to input.
+func _pause() -> void:
+	is_paused = true
+	_pause_selection = 0
+
+	# Create the pause overlay (CanvasLayer so it's above everything)
+	_pause_layer = CanvasLayer.new()
+	_pause_layer.layer = 15  # Above HUD and inventory
+	_pause_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+
+	_pause_draw = Node2D.new()
+	_pause_draw.draw.connect(_on_pause_draw)
+	_pause_layer.add_child(_pause_draw)
+	add_child(_pause_layer)
+	_pause_draw.queue_redraw()
+
+	# Freeze the game world
+	get_tree().paused = true
+
+	# This node must keep processing so ESC can unpause
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+## Closes the pause menu and resumes the game.
+func _unpause() -> void:
+	is_paused = false
+	get_tree().paused = false
+	process_mode = Node.PROCESS_MODE_INHERIT
+
+	if _pause_layer:
+		_pause_layer.queue_free()
+		_pause_layer = null
+		_pause_draw = null
+
+
+## Exits the dungeon and returns to camp (no gold awarded).
+func _exit_dungeon() -> void:
+	# Unpause first so the scene change works
+	get_tree().paused = false
+
+	# Save inventory before returning to camp so nothing is lost.
+	if has_node("Player"):
 		var player: Node2D = $Player
 		get_tree().set_meta("player_inventory", player.inventory.duplicate(true))
 
-		# Clear the dungeon recipe since the player is abandoning the run.
-		if get_tree().has_meta("dungeon_recipe"):
-			get_tree().remove_meta("dungeon_recipe")
+	# Clear the dungeon recipe since the player is abandoning the run.
+	if get_tree().has_meta("dungeon_recipe"):
+		get_tree().remove_meta("dungeon_recipe")
 
-		get_tree().change_scene_to_file("res://scenes/camp.tscn")
+	get_tree().change_scene_to_file("res://scenes/camp.tscn")
+
+
+## Draws the pause menu overlay -- dark background, title, two options.
+func _on_pause_draw() -> void:
+	# Semi-transparent dark background
+	_pause_draw.draw_rect(Rect2(0, 0, 320, 180), Color(0, 0, 0, 0.7))
+
+	# Panel background
+	var px: float = 100.0
+	var py: float = 50.0
+	var pw: float = 120.0
+	var ph: float = 70.0
+	_pause_draw.draw_rect(Rect2(px, py, pw, ph), Color(0.06, 0.06, 0.14))
+	_pause_draw.draw_rect(Rect2(px, py, pw, 1), Color(0.55, 0.55, 0.75))
+	_pause_draw.draw_rect(Rect2(px, py + ph - 1, pw, 1), Color(0.55, 0.55, 0.75))
+	_pause_draw.draw_rect(Rect2(px, py, 1, ph), Color(0.55, 0.55, 0.75))
+	_pause_draw.draw_rect(Rect2(px + pw - 1, py, 1, ph), Color(0.55, 0.55, 0.75))
+
+	# "PAUSED" title
+	_draw_pause_text("PAUSED", px + pw / 2.0, py + 10, Color(1.0, 1.0, 1.0))
+
+	# Resume option
+	var resume_col: Color = Color(1.0, 1.0, 0.5) if _pause_selection == 0 else Color(0.5, 0.5, 0.6)
+	var resume_y: float = py + 30
+	if _pause_selection == 0:
+		_pause_draw.draw_rect(Rect2(px + 10, resume_y - 2, pw - 20, 11), Color(0.15, 0.15, 0.3))
+	_draw_pause_text("RESUME", px + pw / 2.0, resume_y, resume_col)
+
+	# Exit option
+	var exit_col: Color = Color(1.0, 0.5, 0.5) if _pause_selection == 1 else Color(0.5, 0.5, 0.6)
+	var exit_y: float = py + 48
+	if _pause_selection == 1:
+		_pause_draw.draw_rect(Rect2(px + 10, exit_y - 2, pw - 20, 11), Color(0.3, 0.12, 0.12))
+	_draw_pause_text("EXIT DUNGEON", px + pw / 2.0, exit_y, exit_col)
+
+	# Hint at bottom
+	_draw_pause_text("W/S:SELECT  E:CONFIRM", px + pw / 2.0, py + ph - 6, Color(0.35, 0.35, 0.45))
+
+
+## Draws centered text on the pause overlay using tiny 3x5 bitmap characters.
+## Each character is drawn pixel-by-pixel -- same technique as the minimap digits.
+func _draw_pause_text(text: String, center_x: float, y: float, col: Color) -> void:
+	# Character width = 3px + 1px gap = 4px per character
+	var char_w: float = 4.0
+	var total_w: float = text.length() * char_w - 1  # no gap after last char
+	var start_x: float = center_x - total_w / 2.0
+
+	for i in range(text.length()):
+		var ch: String = text[i]
+		var cx: float = start_x + i * char_w
+		_draw_pause_char(cx, y, ch, col)
+
+
+## Draws a single 3x5 bitmap character at the given position.
+func _draw_pause_char(x: float, y: float, ch: String, col: Color) -> void:
+	# Bitmap font -- each letter is a 3x5 grid of pixels.
+	# 1 = draw pixel, 0 = skip.  This is the same approach used
+	# throughout the game (bitmap_label, minimap, etc.)
+	var glyphs: Dictionary = {
+		"A": [0x7,0x5,0x7,0x5,0x5], "B": [0x6,0x5,0x6,0x5,0x6],
+		"C": [0x3,0x4,0x4,0x4,0x3], "D": [0x6,0x5,0x5,0x5,0x6],
+		"E": [0x7,0x4,0x6,0x4,0x7], "F": [0x7,0x4,0x6,0x4,0x4],
+		"G": [0x3,0x4,0x5,0x5,0x3], "H": [0x5,0x5,0x7,0x5,0x5],
+		"I": [0x7,0x2,0x2,0x2,0x7], "J": [0x1,0x1,0x1,0x5,0x7],
+		"K": [0x5,0x5,0x6,0x5,0x5], "L": [0x4,0x4,0x4,0x4,0x7],
+		"M": [0x5,0x7,0x7,0x5,0x5], "N": [0x5,0x7,0x7,0x5,0x5],
+		"O": [0x2,0x5,0x5,0x5,0x2], "P": [0x6,0x5,0x6,0x4,0x4],
+		"R": [0x6,0x5,0x6,0x5,0x5], "S": [0x3,0x4,0x2,0x1,0x6],
+		"T": [0x7,0x2,0x2,0x2,0x2], "U": [0x5,0x5,0x5,0x5,0x7],
+		"V": [0x5,0x5,0x5,0x5,0x2], "W": [0x5,0x5,0x7,0x7,0x5],
+		"X": [0x5,0x5,0x2,0x5,0x5], "Y": [0x5,0x5,0x2,0x2,0x2],
+		"/": [0x1,0x1,0x2,0x4,0x4], ":": [0x0,0x2,0x0,0x2,0x0],
+		" ": [0x0,0x0,0x0,0x0,0x0],
+		"0": [0x7,0x5,0x5,0x5,0x7], "1": [0x2,0x6,0x2,0x2,0x7],
+		"2": [0x7,0x1,0x7,0x4,0x7], "3": [0x7,0x1,0x7,0x1,0x7],
+		"4": [0x5,0x5,0x7,0x1,0x1], "5": [0x7,0x4,0x7,0x1,0x7],
+		"6": [0x7,0x4,0x7,0x5,0x7], "7": [0x7,0x1,0x1,0x1,0x1],
+		"8": [0x7,0x5,0x7,0x5,0x7], "9": [0x7,0x5,0x7,0x1,0x7],
+	}
+
+	if not glyphs.has(ch):
+		return  # skip unknown characters
+
+	var rows: Array = glyphs[ch]
+	for row in range(5):
+		var bits: int = rows[row]
+		for bit in range(3):
+			if bits & (1 << (2 - bit)):
+				_pause_draw.draw_rect(Rect2(x + bit, y + row, 1, 1), col)
